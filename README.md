@@ -40,6 +40,8 @@ In Claude Code:
 
 Skills are then available under the `nagini:` namespace (e.g. `/nagini:verifying`), agents by their plain names, and the MCP verification tools as `mcp__nagini__verify_method` / `mcp__nagini__verify_snippet`.
 
+To update later, run `/plugin marketplace update viperproject`. Auto-update is off by default for third-party marketplaces. The plugin's version tracks the git commit, so every push to this repository is picked up by the next update.
+
 ## Usage
 
 Ask Claude to verify, prove, or add specifications to Python code — the `verifying` skill triggers and guides the workflow (spec design → spec review → per-method implement & prove → final red-flag audit). Skills can also be invoked directly (e.g. `/nagini:verifying`).
