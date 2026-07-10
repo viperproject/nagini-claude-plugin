@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "nagini": {
+      "type": "stdio",
+      "command": "${CLAUDE_PLUGIN_ROOT}/bin/nagini-mcp",
+      "args": [],
+      "env": {}
+    }
+  }
+}
