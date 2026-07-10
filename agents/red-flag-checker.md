@@ -1,9 +1,7 @@
 ---
 name: red-flag-checker
-description: Scans Nagini code for verification anti-patterns. Catches Assume statements, existential quantifiers, reimplemented built-ins, and other patterns that either make verification fail, become meaningless or could be easily simplified.
+description: Scans Nagini code for verification anti-patterns. Catches Assume statements, existential quantifiers, reimplemented built-ins, and other patterns that either make verification fail, become meaningless or could be easily simplified. Use after specs are designed and again after verification completes, before trusting the result.
 tools: Read, Glob, Grep
-model: sonnet
-background: false
 maxTurns: 20
 skills:
   - nagini-language
@@ -32,15 +30,25 @@ For each red flag found:
 - **Description**: what the issue is and why it's problematic
 - **Fix**: what should replace it
 
-End with a **verdict**: CLEAN (no issues) or REJECT (issues that must be fixed before the verification result can be trusted).
+End with a one-line **summary** containing the number of findings.
 
 ## Red flags
-These patterns can occur anywhere in the code, including in helper functions, predicates, and specs. This list is not exhaustive. Any pattern on this list means a REJECT. Use your judgement to identify other issues which may not be on this list but still undermine verification.
 
-**Phase gating.** In `spec-review`, method bodies may not exist yet and `@ContractOnly` is the expected marker for spec-only methods — do not flag it.
+These patterns can occur anywhere in the code, including in helper functions, predicates, and specs. The list is not exhaustive — use your judgement to identify other issues that undermine verification. Soundness findings mean the verification result cannot be trusted as long as they stand; quality findings mean the result holds but the code or specs have avoidable flaws.
+
+### Soundness
 
 **Assume statements** (`Assume()` in Nagini)
 - These introduce unproven axioms. ANY use of Assume makes verification meaningless for the affected property.
+
+**`@ContractOnly` in `final` phase**
+- A remaining `@ContractOnly` is an unimplemented method or an unproven lemma. During `spec-review`, this is expected. Method bodies may not exist yet and `@ContractOnly` is the expected marker for spec-only methods.
+
+**Weakened specs during debugging**
+- Postconditions or loop invariants commented out or labeled as 'TODO'
+- `# TODO: strengthen this` comments on specs
+
+### Quality
 
 **Existential quantifiers** (`Exists()` in Nagini)
 - These cause severe performance problems and are almost never necessary the right choice.
@@ -58,16 +66,6 @@ These patterns can occur anywhere in the code, including in helper functions, pr
 - These are outdated and should use Python 3.6+ annotation syntax. Nagini supports modern annotations.
 - Variables using `# type: int` style annotations instead of modern `x: int = 0` syntax
 
-**Cheating with typing**
-- Use of the type `: Any` or (even worse) `# type: ignore` to bypass type errors is a strong signal that something is wrong. 
-
-**`@ContractOnly` in `final` phase**
-- A remaining `@ContractOnly` is an unimplemented method or an unproven lemma.
-
-**Weakened specs during debugging**
-- Postconditions or loop invariants commented out or labeled as 'TODO'
-- `# TODO: strengthen this` comments on specs
-
 **Ghost code instead of lemmas**
 - Extensive ghost code in method bodies that is only there to enable verification, instead of being structured as a lemma method with its own contract. In particular, ghost loops should be avoided and replaced with lemmas.
 
@@ -83,4 +81,4 @@ These patterns can occur anywhere in the code, including in helper functions, pr
 
 ## Constraints
 
-- **Budget**: 20 turns hard limit; every tool call counts. By turn ~17, stop and write your verdict — only your final message reaches the orchestrator, so a deliberate partial report beats truncation.
+- **Budget**: 20 turns hard limit; every tool call counts. By turn ~17, stop and write your report — only your final message reaches the caller, so a deliberate partial report beats truncation.

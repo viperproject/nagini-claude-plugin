@@ -4,8 +4,8 @@ A [Claude Code](https://claude.com/claude-code) plugin for formally verifying Py
 
 The plugin provides:
 
-- **Skills** — a Nagini language and tooling reference, specification-quality principles, a verification-error debugging playbook, and a guide to running full verification workflows.
-- **Agents** — specialized subagents for interface design, specification design and critique, spec testing, implementation/proof (`method-verifier`), and an adversarial red-flag audit of verification results.
+- **Skills** — `verifying` (the workflow guide and entrypoint), `nagini-language` (language and tooling reference with verified examples), `spec-quality` (specification quality principles), and `handling-verification-errors` (debugging playbook).
+- **Agents** — `spec-designer` (writes predicates, pure functions, and method contracts), `spec-critic` (independent spec review for strength and completeness), `method-verifier` (implements and proves one method at a time), and `red-flag-checker` (audits for patterns that undermine verification).
 - **MCP tools** — `verify_method` / `verify_snippet` for in-session verification with caching, via a bundled Nagini MCP server launcher.
 
 ## Prerequisites
@@ -38,7 +38,13 @@ In Claude Code:
 /plugin install nagini@viperproject
 ```
 
-Skills are then available under the `nagini:` namespace (e.g. `/nagini:nagini-language`), agents by their plain names, and the MCP verification tools as `mcp__nagini__verify_method` / `mcp__nagini__verify_snippet`.
+Skills are then available under the `nagini:` namespace (e.g. `/nagini:verifying`), agents by their plain names, and the MCP verification tools as `mcp__nagini__verify_method` / `mcp__nagini__verify_snippet`.
+
+## Usage
+
+Ask Claude to verify, prove, or add specifications to Python code — the `verifying` skill triggers and guides the workflow (spec design → spec review → per-method implement & prove → final red-flag audit). Skills can also be invoked directly (e.g. `/nagini:verifying`).
+
+For hard methods, include a log path when dispatching `method-verifier` — the agent records each verification attempt there, and passing the prior session's log into a re-dispatch lets it continue where it left off instead of repeating failed strategies.
 
 ## Development
 
@@ -58,7 +64,8 @@ Layout:
 - `.claude-plugin/marketplace.json` — same-repo marketplace (`viperproject`)
 - `.mcp.json` — MCP server wiring, pointing at `bin/nagini-mcp`
 - `bin/nagini-mcp` — launcher that resolves the Nagini MCP server (resolution order above) and reports missing prerequisites
-- `skills/`, `agents/` — plugin components (see the READMEs inside)
+- `skills/<name>/SKILL.md` — skills, with supporting material in `references/` and `examples/`
+- `agents/<name>.md` — subagents
 
 ## Troubleshooting
 

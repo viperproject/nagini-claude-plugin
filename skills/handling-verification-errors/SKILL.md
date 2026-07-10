@@ -13,11 +13,10 @@ description: Nagini debugging and error handling reference. Provides strategies 
 
 Do not make assumptions about how the verifier works internally. If you make incorrect assumptions, you will make mistakes. The verifier is reasonably powerful. It should practically always be possible to verify code with the correct specifications. If you think you have a correct specification but the verifier cannot prove it, you are likely missing a necessary intermediate assertion or lemma.
 
-There is a list of known verifier limitations in `nagini-language/references/capabilities.md`. If you think you've encountered a new limitation, follow these instructions to confirm and report it:
+There is a list of known verifier limitations in the `nagini-language` skill's capabilities reference. If you think you've encountered a new limitation, confirm it before acting on it:
 
-*Never* assume the verifier has a limitation or bug without first testing it: In a separate file in a `tests/` subfolder (relative to the source file's directory, name: `tests/test_limitation_<limitation_name>.py`), write a minimal case that would fail if the limitation exists. If the limitation is real, then this test should fail. If the test verifies, then the limitation is not real and you should look for missing assertions or proof steps in the original code instead of assuming a verifier bug. You should also remove the limitation test file then.
-
-If you do encounter a real verifier limitation that prevents verification of correct code, report it prominently in your output with a description and the minimal test case that demonstrates the issue.
+*Never* assume the verifier has a limitation or bug without first testing it. It is very easy to jump to incorrect conclusions about the reason of a failure. Instead, always try to write a minimal self-contained case that would fail if the limitation exists and verify it. If it verifies, the limitation is not real and the error has another cause.
+If you do encounter a real verifier limitation that prevents verification of correct code, report it prominently in your output with a description and the minimal snippet that demonstrates the issue.
 
 # Verifier options
 

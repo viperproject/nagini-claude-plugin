@@ -1,6 +1,6 @@
 ---
 name: nagini-language
-description: Nagini language reference, verified examples, and verification tools. Provides the syntax, permission model, and tooling needed to write and verify Nagini Python programs. Load this skill for Nagini syntax help or when working with Nagini verification tools.
+description: Nagini language reference, verified examples, and verification tools. Provides the syntax, permission model, and tooling needed to write and verify Nagini Python programs. Use when writing or reading Nagini specifications, for Nagini syntax questions, or when working with the Nagini verification tools.
 ---
 
 # Nagini Language & Tools
