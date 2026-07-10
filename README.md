@@ -15,8 +15,10 @@ The plugin configures Claude Code; the verifier itself must be installed separat
 1. **Python 3** with the `nagini` package (use a version of Python supported by your Nagini release):
 
    ```sh
-   python3 -m pip install nagini
+   python3 -m pip install "nagini[mcp]"
    ```
+
+   The `[mcp]` extra pulls in the MCP SDK the in-session verification server needs.
 We recommend installing Nagini in a virtualenv.
 
 2. **A 64-bit Java runtime (JDK/JRE 11+)** for the Viper backend.
@@ -52,31 +54,49 @@ For hard methods, include a log path when dispatching `method-verifier` — the 
 
 ```sh
 # validate manifest and structure
-claude plugin validate .
+claude plugin validate ./plugin
 
 # run a session with the local checkout instead of the installed version
-claude --plugin-dir /path/to/nagini-claude-plugin
+claude --plugin-dir /path/to/nagini-claude-plugin/plugin
 ```
 
 Inside a session, `/reload-plugins` picks up local edits without restarting. Alternatively, add the checkout as a local marketplace: `/plugin marketplace add ./nagini-claude-plugin`.
 
-Layout:
+### Docker
 
-- `.claude-plugin/plugin.json` — plugin manifest (no `version` field: versions track git commits while under active development)
-- `.claude-plugin/marketplace.json` — same-repo marketplace (`viperproject`)
-- `.mcp.json` — MCP server wiring, pointing at `bin/nagini-mcp`
-- `bin/nagini-mcp` — launcher that resolves the Nagini MCP server (resolution order above) and reports missing prerequisites
-- `skills/<name>/SKILL.md` — skills, with supporting material in `references/` and `examples/`
-- `agents/<name>.md` — subagents
+`docker/Dockerfile` builds a clean environment with Python 3.12, Java 21, nagini (git master), and Claude Code — useful for trying the plugin without a local Nagini install, and as the base for tests:
+
+```sh
+docker build -t nagini-plugin-dev docker/
+docker run -it \
+  -v "$PWD:/repo:ro" \
+  -v ~/.claude/.credentials.json:/root/.claude/.credentials.json \
+  nagini-plugin-dev
+# inside the container:
+claude --plugin-dir /repo/plugin
+```
+
+Instead of mounting credentials, you can pass `-e ANTHROPIC_API_KEY=...`.
+
+Layout — the plugin itself lives in `plugin/`; everything outside it (tests, CI) stays out of users' installed copies:
+
+- `.claude-plugin/marketplace.json` — same-repo marketplace (`viperproject`), pointing at `./plugin`
+- `plugin/.claude-plugin/plugin.json` — plugin manifest (no `version` field: versions track git commits while under active development)
+- `plugin/.mcp.json` — MCP server wiring, pointing at `bin/nagini-mcp`
+- `plugin/bin/nagini-mcp` — launcher that resolves the Nagini MCP server (resolution order above) and reports missing prerequisites
+- `plugin/skills/<name>/SKILL.md` — skills, with supporting material in `references/` and `examples/`
+- `plugin/agents/<name>.md` — subagents
 
 ## Troubleshooting
 
 The MCP server's error output appears in `/mcp` (or the `/plugin` errors view).
 
 - **"no Java runtime found"** — install a 64-bit JDK/JRE 11+ and make sure `java` is on the `PATH` of the shell you launch Claude Code from, or set `JAVA_HOME`.
-- **"could not find the Nagini MCP server" although nagini is installed** — either your nagini release predates the MCP server (`python3 -m pip install --upgrade nagini`), or it lives in a virtualenv the launcher does not detect (see the resolution order above).
+- **"could not find the Nagini MCP server" although nagini is installed** — either your nagini release predates the MCP server (`python3 -m pip install --upgrade "nagini[mcp]"`), or it lives in a virtualenv the launcher does not detect (see the resolution order above).
+- **`ModuleNotFoundError: No module named 'mcp'`** — nagini was installed without the MCP extra: `python3 -m pip install "nagini[mcp]"`.
 - **Virtualenv not picked up** — the launcher inherits its environment from the process Claude Code was started from. Launch `claude` from a shell with the venv activated, keep the venv at `<project>/.venv`, or set `NAGINI_MCP=/path/to/venv/bin/nagini_mcp` in your shell profile.
 - **`pip: command not found`** — install pip first (e.g. `apt install python3-pip`) or use `python3 -m ensurepip`.
+- **Permission rules for the verify tools** — the tools appear as `mcp__nagini__verify_method` / `mcp__nagini__verify_snippet`, but permission rules (in `settings.json`, `--allowedTools`, etc.) must use the plugin-namespaced form, e.g. `mcp__plugin_nagini_nagini__verify_method`.
 
 ## License
 

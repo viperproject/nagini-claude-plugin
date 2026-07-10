@@ -5,7 +5,7 @@
   "plugins": [
     {
       "name": "nagini",
-      "source": "./",
+      "source": "./plugin",
       "description": "Formal verification of Python programs with Nagini"
     }
   ]

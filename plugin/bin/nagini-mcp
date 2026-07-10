@@ -15,7 +15,7 @@ fail() {
     "" \
     "The Nagini plugin requires:" \
     "  * Python 3 with a nagini version that includes the MCP server:" \
-    "      python3 -m pip install --upgrade nagini" \
+    "      python3 -m pip install --upgrade \"nagini[mcp]\"" \
     "  * A 64-bit Java runtime (JDK/JRE 11+) for the Viper backend:  https://adoptium.net" \
     "" \
     "If nagini lives in a virtualenv the launcher does not detect, point it there:" \
