@@ -10,24 +10,17 @@ The plugin provides:
 
 ## Prerequisites
 
-The plugin configures Claude Code; the verifier itself must be installed separately:
+You need:
 
-1. **Python 3** with the `nagini` package (use a version of Python supported by your Nagini release):
+1. **uv**: to install Nagini and its dependencies in an isolated environment. Check out the install instructions [here](https://docs.astral.sh/uv/getting-started/installation/)
 
-   ```sh
-   python3 -m pip install "nagini[mcp]"
-   ```
+The first server start downloads nagini and its dependencies. Later starts use uv's cache.
 
-   The `[mcp]` extra pulls in the MCP SDK the in-session verification server needs.
-We recommend installing Nagini in a virtualenv.
+To use your own nagini instead, e.g. a source build, set `NAGINI_MCP=/path/to/venv/bin/nagini_mcp` in the environment you start Claude Code from.
 
 2. **A 64-bit Java runtime (JDK/JRE 11+)** for the Viper backend.
 
-`nagini` may be installed globally or in a virtualenv. The plugin runs the nagini of the environment Claude Code was started from — if nagini lives in a virtualenv, activate it before starting Claude Code. The launcher resolves the MCP server in this order:
 
-1. `$NAGINI_MCP` — explicit path to a `nagini_mcp` executable
-2. `nagini_mcp` on `PATH`
-3. `python3 -m nagini_translation.mcp_server`
 
 ## Installation
 
@@ -62,10 +55,10 @@ Inside a session, `/reload-plugins` picks up local edits without restarting. Alt
 
 ### Docker
 
-`docker/Dockerfile` builds a clean environment with Python 3.12, Java 21, nagini (git master), and Claude Code — useful for trying the plugin without a local Nagini install, and as the base for tests:
+`docker/Dockerfile` builds a clean environment with Java 21, uv (cache pre-warmed with the pinned nagini), and Claude Code — useful for trying the plugin in isolation, and as the base for tests:
 
 ```sh
-docker build -t nagini-plugin-dev docker/
+docker build -f docker/Dockerfile -t nagini-plugin-dev .
 docker run -it \
   -v "$PWD:/repo:ro" \
   -v ~/.claude/.credentials.json:/root/.claude/.credentials.json \
@@ -81,7 +74,7 @@ Layout — the plugin itself lives in `plugin/`; everything outside it (tests, C
 - `.claude-plugin/marketplace.json` — same-repo marketplace (`viperproject`), pointing at `./plugin`
 - `plugin/.claude-plugin/plugin.json` — plugin manifest (no `version` field: versions track git commits while under active development)
 - `plugin/.mcp.json` — MCP server wiring, pointing at `bin/nagini-mcp`
-- `plugin/bin/nagini-mcp` — launcher that resolves the Nagini MCP server (resolution order above) and reports missing prerequisites
+- `plugin/bin/nagini-mcp` — launcher that runs the pinned nagini via uvx (or `$NAGINI_MCP`) and reports missing prerequisites
 - `plugin/skills/<name>/SKILL.md` — skills, with supporting material in `references/` and `examples/`
 - `plugin/agents/<name>.md` — subagents
 
@@ -90,11 +83,7 @@ Layout — the plugin itself lives in `plugin/`; everything outside it (tests, C
 The MCP server's error output appears in `/mcp` (or the `/plugin` errors view).
 
 - **"no Java runtime found"** — install a 64-bit JDK/JRE 11+ and make sure `java` is on the `PATH` of the shell you launch Claude Code from, or set `JAVA_HOME`.
-- **"could not find the Nagini MCP server" although nagini is installed** — either your nagini release predates the MCP server (`python3 -m pip install --upgrade "nagini[mcp]"`), or it lives in a virtualenv the launcher does not detect (see the resolution order above).
-- **`ModuleNotFoundError: No module named 'mcp'`** — nagini was installed without the MCP extra: `python3 -m pip install "nagini[mcp]"`.
-- **Virtualenv not picked up** — the launcher inherits its environment from the process Claude Code was started from. Launch `claude` from a shell with the venv activated, or set `NAGINI_MCP=/path/to/venv/bin/nagini_mcp` in your shell profile.
-- **`pip: command not found`** — install pip first (e.g. `apt install python3-pip`) or use `python3 -m ensurepip`.
-- **Permission rules for the verify tools** — the tools appear as `mcp__nagini__verify_method` / `mcp__nagini__verify_snippet`, but permission rules (in `settings.json`, `--allowedTools`, etc.) must use the plugin-namespaced form, e.g. `mcp__plugin_nagini_nagini__verify_method`.
+- **"uvx not found"** — install uv (see Prerequisites) and make sure `uvx` is on the `PATH` of the shell you launch Claude Code from.
 
 ## License
 

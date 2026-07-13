@@ -10,20 +10,7 @@ Nagini proves Python code correct against contracts written in the code (`Requir
 ## Checking for the required tools
 Before performing any verification, check that the Nagini MCP server is installed and reachable, which means that the plugin's `mcp__nagini__verify_method` and `mcp__nagini__verify_snippet` tools are available.
 
-If they are not, do not use workarounds like falling back to the `nagini` CLI. Instead,  diagnose and walk the user through the fix. Since the server spawns once at startup with Claude Code's launch environment, most fixes will require restarting Claude Code. Check the following:
-
-1. **Toolchain.** `java -version` (the Viper backend needs a 64-bit JDK/JRE 11+) and `python3 --version`. If either is missing, give install instructions for the user's platform.
-2. **A nagini install that has the MCP server.** Look before concluding there is none: `<project>/.venv` and `<project>/venv`, `$VIRTUAL_ENV`, `command -v nagini_mcp`, `~/.local/bin/nagini_mcp`, other venvs in the project (`ls */pyvenv.cfg`). Test a candidate without activating it using its own interpreter: `<venv>/bin/python -c "import nagini_translation.mcp_server"`. `No module named 'mcp'` means nagini lacks the MCP extra; a `nagini_translation` failure means nagini is missing or too old. In both cases, instruct the user to activate the venv and run `pip install --upgrade "nagini[mcp]"`.
-If no fixable install exists anywhere, have the user create one, then start Claude Code from the activated venv:
-
-```sh
-python3 -m venv .venv
-.venv/bin/pip install "nagini[mcp]"
-source .venv/bin/activate
-claude
-```
-
-3. **A working install the session cannot reach.** Nagini is fine, but Claude Code was launched from a shell where it does not resolve. Explain how to activate it — `source <venv>/bin/activate` with the discovered path, and to start `claude` from that shell.
+If they are not, do not use workarounds like falling back to the `nagini` CLI. Instead,  diagnose with the plugin README.md and walk the user through the fix. Since the server spawns once at startup with Claude Code's launch environment, most fixes will require restarting Claude Code.
 
 ## Assess what exists
 
