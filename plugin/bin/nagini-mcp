@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
-# Launcher for the Nagini MCP server.
-# Resolution order:
-#   1. $NAGINI_MCP        — explicit path to a nagini_mcp executable
-#   2. $VIRTUAL_ENV       — the active virtualenv
-#   3. $CLAUDE_PROJECT_DIR/{.venv,venv} — a virtualenv at the project root
-#   4. nagini_mcp on PATH
-#   5. python3 -m nagini_translation.mcp_server
+# Launcher for the Nagini MCP server. Runs the nagini of the environment
+# Claude Code was started from:
+#   1. $NAGINI_MCP — explicit path to a nagini_mcp executable
+#   2. nagini_mcp on PATH
+#   3. python3 -m nagini_translation.mcp_server
 
 set -u
 
@@ -18,7 +16,8 @@ fail() {
     "      python3 -m pip install --upgrade \"nagini[mcp]\"" \
     "  * A 64-bit Java runtime (JDK/JRE 11+) for the Viper backend:  https://adoptium.net" \
     "" \
-    "If nagini lives in a virtualenv the launcher does not detect, point it there:" \
+    "If nagini lives in a virtualenv, start Claude Code from a shell with the" \
+    "venv activated, or point the launcher at it:" \
     "  export NAGINI_MCP=/path/to/venv/bin/nagini_mcp" \
     "" \
     "More help: https://github.com/viperproject/nagini-claude-plugin" >&2
@@ -34,14 +33,6 @@ if [ -n "${NAGINI_MCP:-}" ]; then
   exec "$NAGINI_MCP" "$@"
 fi
 
-# Prefer virtualenvs over a global install: the active venv first, then a
-# venv at the project root.
-for venv in "${VIRTUAL_ENV:-}" "${CLAUDE_PROJECT_DIR:-}/.venv" "${CLAUDE_PROJECT_DIR:-}/venv"; do
-  if [ -x "$venv/bin/nagini_mcp" ]; then
-    exec "$venv/bin/nagini_mcp" "$@"
-  fi
-done
-
 if command -v nagini_mcp >/dev/null 2>&1; then
   exec nagini_mcp "$@"
 fi
@@ -50,4 +41,4 @@ if command -v python3 >/dev/null 2>&1 && python3 -c 'import nagini_translation.m
   exec python3 -m nagini_translation.mcp_server "$@"
 fi
 
-fail "could not find the Nagini MCP server; nagini may be missing, too old, or in an undetected virtualenv"
+fail "could not find the Nagini MCP server; nagini may be missing, too old, or not reachable from the environment Claude Code was started from"
