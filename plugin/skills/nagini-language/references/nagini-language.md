@@ -306,7 +306,7 @@ Forall(int, lambda i:
 
 ### Sequences (PSeq)
 
-Immutable mathematical sequences:
+Immutable mathematical sequences. The supported operations are:
 
 ```python
 from nagini_contracts.contracts import PSeq
@@ -319,6 +319,7 @@ s + t                             # Concatenation
 s.take(n)                         # First n elements
 s.drop(n)                         # All but first n elements
 s.update(i, v)                    # Update at index i
+x in s                            # Membership
 ```
 
 The varargs form `PSeq(x, y, ...)` is usable inline in any spec expression. The empty form `PSeq[int]()` is statement-level only: it cannot appear directly inside `Requires` / `Ensures` / `Invariant` / `Assert` expressions. For `Invariant` / `Assert`, bind to a local first. For `Requires` / `Ensures`, express emptiness with `len(s) == 0`, or build an empty sequence from an existing one with `s.take(0)` or `s.drop(len(s))`.
@@ -437,6 +438,8 @@ Tuple measures for lexicographic ordering:
 ```python
 Decreases(a, b)  # a decreases, or a is equal and b decreases
 ```
+
+For a `@Pure` function recursing over a heap predicate, the measure can be the predicate instance. The recursive call must then sit inside an `Unfolding` of that same instance. If the predicate guards its recursion (e.g. `Implies(l.next is not None, MyList(l.next))`), guard the call with the same condition.
 
 ### `MustTerminate` — non-pure methods and loops
 
