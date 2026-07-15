@@ -8,7 +8,7 @@ description: Guide to verifying Python programs with Nagini using this plugin's 
 Nagini proves Python code correct against contracts written in the code (`Requires`/`Ensures` from `nagini_contracts`). This skill maps the plugin's components onto a workflow that works well; adapt it to the task at hand.
 
 ## Checking for the required tools
-Before performing any verification, check that the Nagini MCP server is installed and reachable, which means that the plugin's `mcp__nagini__verify_method` and `mcp__nagini__verify_snippet` tools are available.
+Before performing any verification, check that the Nagini MCP server is installed and reachable, which means that the plugin's `mcp__nagini__verify_method` tool is available.
 
 If they are not, do not use workarounds like falling back to the `nagini` CLI. Instead,  diagnose with the plugin README.md and walk the user through the fix. Since the server spawns once at startup with Claude Code's launch environment, most fixes will require restarting Claude Code.
 

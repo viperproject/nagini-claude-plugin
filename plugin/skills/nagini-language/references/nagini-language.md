@@ -75,6 +75,17 @@ def swap(a: Cell, b: Cell) -> None:
     b.value = tmp
 ```
 
+#### Constructors
+
+In `__init__`, write the field assignments before the `Ensures` clauses: mypy infers each field's type from its first assignment, so a contract referencing `self.field` above it fails with `Cannot determine type [has-type]`.
+
+```python
+class ListNode:
+    def __init__(self, val: int, next: 'Optional[ListNode]') -> None:
+        self.val = val
+        self.next = next
+        Ensures(Acc(self.val) and Acc(self.next) and self.val is val and self.next is next)
+```
 
 ### Result Reference
 
@@ -134,12 +145,6 @@ def transfer(src: Cell, dst: Cell) -> None:
     Ensures(dst.value == Old(src.value))
 
     dst.value = src.value
-```
-
-### Wildcard Permissions
-
-```python
-Acc(obj.field, ARP())   # Abstract read permission
 ```
 
 ## Predicates
