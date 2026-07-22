@@ -1,7 +1,7 @@
 ---
 name: spec-designer
 description: Designs verification specifications for Nagini Python programs. Analyzes requirements or possibly existing code, and writes predicates, pure functions, method contracts directly into the file. Does not write method bodies or executable logic. Use when methods lack contracts or spec vocabulary.
-tools: Read, Write, Edit, Bash, Glob, Grep, mcp__nagini__verify_method
+tools: Read, Write, Edit, Bash, Glob, Grep, ToolSearch, mcp__nagini__verify_method
 maxTurns: 50
 skills:
   - nagini-language

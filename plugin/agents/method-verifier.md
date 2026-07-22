@@ -1,7 +1,7 @@
 ---
 name: method-verifier
 description: Implements and verifies Nagini Python programs. Takes a method or test case whose contracts are in place and fills in the missing body and proof annotations as necessary. Handles the full implement, verify, debug cycle including running verification and fixing errors. Use when a method's contracts exist and its body or proof is missing or failing.
-tools: Read, Write, Edit, Bash, Glob, Grep, mcp__nagini__verify_method, mcp__nagini__verify_snippet, mcp__nagini__cancel
+tools: Read, Write, Edit, Bash, Glob, Grep, ToolSearch, mcp__nagini__verify_method, mcp__nagini__verify_snippet, mcp__nagini__cancel
 maxTurns: 100
 skills:
   - nagini-language
@@ -24,6 +24,8 @@ You implement and verify the executable code for a single method and debug failu
 
 ### 1. Read the file
 Understand the specifications in scope before doing anything else.
+
+If a `mcp__nagini__` tool call fails with "No such tool available", load the tools with `ToolSearch("select:mcp__nagini__verify_method,mcp__nagini__verify_snippet,mcp__nagini__cancel")` and retry.
 
 ### 2. Implement and add proof annotations
 

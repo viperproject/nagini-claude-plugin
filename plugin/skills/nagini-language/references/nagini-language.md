@@ -373,6 +373,18 @@ Nagini ships verified contracts for many Python built-ins, usable directly in sp
 
 Only write a custom pure function when no built-in covers the operation.
 
+## Integer Model
+
+`int` is unbounded: arithmetic (`+`, `-`, `*`, `//`, `%`) has no size limits and needs no configuration. Two constructs do have limits:
+
+**Bitwise operations** on `int` are encoded through fixed-width bitvectors sized by the verifier's bitops-width setting (default 8; set per request via the `int_bitops_size` parameter of the verify tools — the width sticks for subsequent requests — or at CLI launch via `--int-bitops-size`). `&`, `|`, `^` require both operands in `[-(2**N), 2**N - 1]` on every application; shifts require a non-negative count and require the operand range only when the count exceeds 64. Out-of-range operands fail with a precondition error naming the flag. Prefer the arithmetic form when one exists — it is unbounded and needs no flag: `x & (2**k - 1)` is `x % 2**k`, `x >> k` is `x // 2**k`, `x << k` is `x * 2**k` (exact equalities for all ints).
+
+**Power expressions**: `**` with a constant exponent is evaluated by unrolling one step per solver instantiation, so only small exponents evaluate (tens, not hundreds); with a symbolic exponent it is essentially opaque without manual lemmas. Exponents must be non-negative. Write large constants as numeral literals (decimal or hex), in code and contracts alike:
+
+```python
+MASK64 = 0xFFFFFFFFFFFFFFFF  # == 2**64 - 1; written as `2**64 - 1` it stays an opaque term
+```
+
 ## Loop Invariants
 
 ```python
@@ -509,6 +521,14 @@ def process_list(items: List[int]) -> int:
 ```
 
 The `list_pred` predicate represents ownership of a Python list and its elements.
+
+### Container Mutators
+
+Modeled list mutators: `append`, `extend`, `insert`, `remove`, `reverse`, `copy`, `xs[i] = v`, `xs.pop()` (no-argument form only), `del xs[i]`, and `del xs[i:j]` (any bound may be omitted or negative; no step). For `xs.pop(i)`, capture `xs[i]` and write `del xs[i]` instead. Modeled dict mutators: `d[k] = v`, `d.pop(k)` (no-default form only), `del d[k]`. Modeled set mutators: `add`, `remove`, `clear`. `list.sort`, `list.clear`, and `list.count` are not modeled. `pop`/`del` require a non-empty list, an in-range index, or a present key — the same obligations as the equivalent read.
+
+## Global Variables
+
+A module-level name assigned exactly once is a constant: read it freely in any function. A reassigned global needs `Acc(<name>)` in contracts and a `global` declaration to rebind. A global list/dict/set is a constant binding whose *contents* still need the usual container permission — e.g. `Requires(Acc(list_pred(P1), 1/100))` and matching `Ensures`. Module-init facts do not flow into defs: restate what the body needs (`len(P1) == 3`, element values) in the precondition; module-level callers hold the permissions and facts after initialization.
 
 ## Equality
 Usually you want to use `is` not `==`. `is` checks for identity (same object), while `==` checks for value equality. For references `is` is almost always what you want. For primitive types like `int` it *should* be interchangeable, but due to some Nagini internals, there can be cases where `==` does not work as expected. So prefer `is`/`is not` for all comparisons.
