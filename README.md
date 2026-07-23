@@ -15,7 +15,7 @@ You need:
 
 The first server start downloads nagini and its dependencies. Later starts use uv's cache.
 
-To use your own nagini instead, e.g. a source build, set `NAGINI_MCP=/path/to/venv/bin/nagini_mcp` in the environment you start Claude Code from.
+To use your own nagini instead, set `NAGINI_FROM` to any `uvx --from` source in the environment you start Claude Code from — a different release (`NAGINI_FROM='nagini[mcp]==1.3.0'`), a source checkout (`NAGINI_FROM=/path/to/nagini`), or a git URL. uvx caches builds, so after editing a source checkout run `uv cache clean nagini` to pick up the changes.
 
 2. **A 64-bit Java runtime (JDK/JRE 11+)** for the Viper backend.
 
@@ -50,36 +50,19 @@ claude --plugin-dir /path/to/nagini-claude-plugin/plugin
 
 Inside a session, `/reload-plugins` picks up local edits without restarting. Alternatively, add the checkout as a local marketplace: `/plugin marketplace add ./nagini-claude-plugin`.
 
-### Docker
-
-`docker/Dockerfile` builds a clean environment with Java 21, uv (cache pre-warmed with the pinned nagini), and Claude Code — useful for trying the plugin in isolation, and as the base for tests:
-
-```sh
-docker build -f docker/Dockerfile -t nagini-plugin-dev .
-docker run -it \
-  -v "$PWD:/repo:ro" \
-  -v ~/.claude/.credentials.json:/root/.claude/.credentials.json \
-  nagini-plugin-dev
-# inside the container:
-claude --plugin-dir /repo/plugin
-```
-
-Instead of mounting credentials, you can pass `-e ANTHROPIC_API_KEY=...`.
-
 Layout — the plugin itself lives in `plugin/`; everything outside it (tests, CI) stays out of users' installed copies:
 
 - `.claude-plugin/marketplace.json` — same-repo marketplace (`viperproject`), pointing at `./plugin`
 - `plugin/.claude-plugin/plugin.json` — plugin manifest (no `version` field: versions track git commits while under active development)
-- `plugin/.mcp.json` — MCP server wiring, pointing at `bin/nagini-mcp`
-- `plugin/bin/nagini-mcp` — launcher that runs the pinned nagini via uvx (or `$NAGINI_MCP`) and reports missing prerequisites
+- `plugin/.mcp.json` — MCP server wiring: runs the pinned nagini via uvx, isolated from any Python environment on the machine. The single source of truth for the nagini and Python pins; both are env-overridable (`NAGINI_FROM`, `NAGINI_PYTHON`)
 - `plugin/skills/<name>/SKILL.md` — skills, with supporting material in `references/` and `examples/`
 
 ## Troubleshooting
 
 The MCP server's error output appears in `/mcp` (or the `/plugin` errors view).
 
-- **"no Java runtime found"** — install a 64-bit JDK/JRE 11+ and make sure `java` is on the `PATH` of the shell you launch Claude Code from, or set `JAVA_HOME`.
-- **"uvx not found"** — install uv (see Prerequisites) and make sure `uvx` is on the `PATH` of the shell you launch Claude Code from.
+- **"No JVM shared library file (libjvm.so) found"** (or the server dies at startup with a `JVMNotFoundException` traceback) — install a 64-bit JDK/JRE 11+. The JVM is located via `JAVA_HOME` or the platform's standard install locations; set `JAVA_HOME` if yours lives somewhere unusual.
+- **`uvx` fails to spawn ("command not found" / ENOENT)** — install uv (see Prerequisites) and make sure `uvx` is on the `PATH` of the shell you launch Claude Code from.
 
 ## License
 
