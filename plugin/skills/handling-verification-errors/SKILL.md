@@ -8,6 +8,7 @@ description: Nagini debugging and error handling reference. Provides strategies 
 - **Never** make assumptions about the cause of a verification error without evidence.
 - Instead, always use the systematic techniques described here to gather information and isolate the true cause.
 - Then, you can confidently fix the underlying issue.
+- **Never** weaken or delete a contract just to make verification pass; surface the mismatch instead.
 
 # Verifier Limitations
 

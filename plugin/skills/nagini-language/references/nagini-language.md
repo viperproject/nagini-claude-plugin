@@ -520,7 +520,7 @@ def process_list(items: List[int]) -> int:
     ...
 ```
 
-The `list_pred` predicate represents ownership of a Python list and its elements.
+The `list_pred` predicate represents ownership of a Python list and its elements. Dicts and sets use `dict_pred`/`set_pred` the same way.
 
 ### Container Mutators
 

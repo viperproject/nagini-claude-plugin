@@ -1,6 +1,6 @@
 ---
 name: nagini-language
-description: Nagini language reference, verified examples, and verification tools. Provides the syntax, permission model, and tooling needed to write and verify Nagini Python programs. Use when writing or reading Nagini specifications, for Nagini syntax questions, or when working with the Nagini verification tools.
+description: Nagini language reference, verified examples, and verification tools. Provides the syntax, permission model, and tooling needed to write and verify Nagini Python programs. Use when the user asks to verify, prove, or formally check Python code or to add specifications to it, when writing or reading Nagini specifications, for Nagini syntax questions, or when working with the Nagini verification tools.
 ---
 
 # Nagini Language & Tools
@@ -11,7 +11,7 @@ Nagini specifications are Python function calls (`Requires()`, `Ensures()`, `Acc
 
 ## Verification tools
 
-Verification runs through the `nagini` MCP server.
+Verification runs through the `nagini` MCP server. Before starting any verification work, check that the plugin's `mcp__nagini__verify_method` tool is available. If it is not, do not fall back to workarounds like the `nagini` CLI: diagnose with the plugin README.md and walk the user through the fix. The server spawns once at Claude Code startup with its launch environment, so most fixes require restarting Claude Code.
 
 - `mcp__nagini__verify_method(path, method)` — the primary tool. Always verify one method per call. `path` must be absolute. `method` is a bare function name, `ClassName.method_name`, or `ClassName`.
 - `mcp__nagini__verify_snippet(code)` — verify inline code without creating a file.

@@ -4,8 +4,7 @@ A [Claude Code](https://claude.com/claude-code) plugin for formally verifying Py
 
 The plugin provides:
 
-- **Skills** — `verifying` (the workflow guide and entrypoint), `nagini-language` (language and tooling reference with verified examples), `spec-quality` (specification quality principles), and `handling-verification-errors` (debugging playbook).
-- **Agents** — `spec-designer` (writes predicates, pure functions, and method contracts), `spec-critic` (independent spec review for strength and completeness), `method-verifier` (implements and proves one method at a time), and `red-flag-checker` (audits for patterns that undermine verification).
+- **Skills** — `nagini-language` (language and tooling reference with verified examples) and `handling-verification-errors` (debugging playbook).
 - **MCP tools** — `verify_method` / `verify_snippet` for in-session verification with caching, via a bundled Nagini MCP server launcher.
 
 ## Prerequisites
@@ -31,15 +30,13 @@ In Claude Code:
 /plugin install nagini@viperproject
 ```
 
-Skills are then available under the `nagini:` namespace (e.g. `/nagini:verifying`), agents by their plain names, and the MCP verification tools as `mcp__nagini__verify_method` / `mcp__nagini__verify_snippet`.
+Skills are then available under the `nagini:` namespace (e.g. `/nagini:nagini-language`), and the MCP verification tools as `mcp__nagini__verify_method` / `mcp__nagini__verify_snippet`.
 
 To update later, run `/plugin marketplace update viperproject`. Auto-update is off by default for third-party marketplaces. The plugin's version tracks the git commit, so every push to this repository is picked up by the next update.
 
 ## Usage
 
-Ask Claude to verify, prove, or add specifications to Python code — the `verifying` skill triggers and guides the workflow (spec design → spec review → per-method implement & prove → final red-flag audit). Skills can also be invoked directly (e.g. `/nagini:verifying`).
-
-For hard methods, include a log path when dispatching `method-verifier` — the agent records each verification attempt there, and passing the prior session's log into a re-dispatch lets it continue where it left off instead of repeating failed strategies.
+Ask Claude to verify, prove, or add specifications to Python code — the `nagini-language` skill triggers and provides the language reference, verified examples, and the verify-tool contract; `handling-verification-errors` kicks in when verification fails or times out. Skills can also be invoked directly (e.g. `/nagini:nagini-language`).
 
 ## Development
 
@@ -76,7 +73,6 @@ Layout — the plugin itself lives in `plugin/`; everything outside it (tests, C
 - `plugin/.mcp.json` — MCP server wiring, pointing at `bin/nagini-mcp`
 - `plugin/bin/nagini-mcp` — launcher that runs the pinned nagini via uvx (or `$NAGINI_MCP`) and reports missing prerequisites
 - `plugin/skills/<name>/SKILL.md` — skills, with supporting material in `references/` and `examples/`
-- `plugin/agents/<name>.md` — subagents
 
 ## Troubleshooting
 
