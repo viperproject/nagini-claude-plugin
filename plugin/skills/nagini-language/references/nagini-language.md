@@ -111,15 +111,15 @@ def increment(self: Counter) -> None:
     self.count = self.count + 1
 ```
 
-### Previous (Loop)
+### Previous (for-loops only)
 
-Use `Previous(var)` in loop invariants to refer to value at previous iteration:
+In a `for x in xs:` loop, `Previous(x)` is the PSeq of the loop variable's values from all previous iterations:
 
 ```python
-while i < n:
-    Invariant(i > 0 and result > Previous(result))  # Strictly increasing
-    result += i
-    i += 1
+s = 0
+for mm in range(1, 13):
+    Invariant(s == len(Previous(mm)))   # iteration count so far
+    s += 1
 ```
 
 ## Permissions
