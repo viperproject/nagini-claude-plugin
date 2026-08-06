@@ -25,6 +25,9 @@ Things that Nagini genuinely cannot do:
 - **Limitation**: Use of Exists() quantifiers. Works in theory but will cause timeouts in practice.
   **Workaround**: Use explicit witnesses or witness functions.
 
+- **Limitation**: Bitwise operators on ints (`&`, `|`, `^`, `<<`, `>>`) encode through an int-to-bitvector bridge that is very expensive for the solver, especially under quantifiers or in loop invariants — proofs that touch them often time out.
+  **Workaround**: When values are nonnegative and the width permits, use the arithmetic equivalents instead (`x & 1` -> `x % 2`, `x >> k` -> `x // 2**k`, `x << k` -> `x * 2**k`); they verify orders of magnitude faster.
+
 - **Limitation**: String support beyond the basics (literals, `+`, `len()`, equality). String methods, formatting, and slicing are largely unsupported.
   **Workaround**: Use lists of integers to represent strings when string reasoning is needed.
 
