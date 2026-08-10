@@ -67,9 +67,9 @@ Each failing diagnostic's `debug` object contains the symbolic state at the fail
 | `assumptions` | All path-condition terms in scope at the failure | Scan for gross absences and anomalies. To test whether a specific fact is available, probe it with `Assert` — presence in this list is neither necessary nor sufficient for derivability |
 | `branchConditions` | The branch decisions leading to the failing path | Identify which control-flow path fails |
 | `state.store` / `state.heap` / `state.oldHeaps` | Local variables and heap chunks with their symbolic values | Trace which symbolic value a variable holds; spot havocked (freshly re-assigned) values after calls |
-| `preambleAssumptions` | Background axioms (domains, function definitions) with descriptions | Check what definitional/typing axioms exist for the functions in the goal |
 | `functionDecls` / `macroDecls` | Declared symbols | Map term names back to program entities |
-| `proverEmits` | The full SMT session (declarations + assertions) as sent to the solver | Deep inspection; note it contains the CONTEXT only, not the goal query itself |
+
+Two bulk fields — the full SMT session (`proverEmits`) and the background axioms (`preambleAssumptions`) — are collected and archived server-side. When a result carries many large diagnostics, later ones may arrive with `trimmed: true` and an `assumptionsOmitted` count instead of the full `assumptions` list, which you also can request from the server.
 
 Reading terms: `x@3@05` is a symbolic constant for program variable `x` (numbers are internal versions — successive assignments create new versions). Integers are boxed: `__prim__int___box__`/`int___unbox__` wrap between Python ints and SMT ints, and `_checkDefined(_, x, id)` wraps variable reads (it is identity on the value). `QA x :: body` is a universal quantifier. Pure functions appear applied to a snapshot argument first (`ipow(_, b, e)`).
 
@@ -77,7 +77,7 @@ Reading terms: `x@3@05` is a symbolic constant for program variable `x` (numbers
 
 | Value | Meaning | Strategy |
 |---|---|---|
-| `(incomplete quantifiers)` | E-matching gave up: the instantiation chain to the proof was never triggered (under-instantiation). More solver time will NOT help — the solver usually gives up in well under a second. | Add stepping-stone `Assert`s that materialize the intermediate terms and facts. For quantified goals, check TRIGGER VOCABULARY: do the premise quantifiers' trigger terms occur under the goal's binder? If not, add a bridging quantified `Assert` whose trigger matches the goal's vocabulary and whose body mentions the premise triggers. |
+| `(incomplete quantifiers)` | E-matching gave up: the instantiation chain to the proof was never triggered (under-instantiation). More solver time will not help. | Restate the missing fact as a GROUND fact placed where it is always visible: as a postcondition or a local `Assert`. Add only facts the payload shows are missing: speculative extra ground facts feed the instantiation engine and can slow everything down. For quantified goals, also check TRIGGER VOCABULARY: do the premise quantifiers' trigger terms occur under the goal's binder? If not, add a bridging quantified `Assert` whose trigger matches the goal's vocabulary and whose body mentions the premise triggers. |
 | `canceled` | The budget ran out while the solver was still actively working. The proof may be within reach. | Either apply the performance strategies below or retry with a larger `--assertTimeout` (e.g. 10000). |
 | `(incomplete (theory arithmetic))` | Nonlinear integer arithmetic (products, `//`, `%` of variables) is beyond the solver. More time will not help. | Restate the proof with stepping stones that avoid division/modulo OF PRODUCTS entirely: use the Euclid identity (`a == (a // d) * d + a % d`), pure polynomial identities (products may appear; the solver normalizes them), and the bounded-multiple inference (`0 <= m * d < d` implies `m == 0`). `(k * d) // d == k` and `(k * d) % d == 0` are NOT directly provable — derive them via the chain above. |
 

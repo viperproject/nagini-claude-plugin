@@ -232,6 +232,8 @@ def abstract_size(obj: MyObj) -> int:
     Ensures(Result() >= 0)
 ```
 
+The verifier does not look at `@ContractOnly` bodies, the contract is **all the information that exists**. In particular, a `@Pure` function which usually gets its definition as an axiom automatically does not if it is `@ContractOnly`.
+
 ### Always add `Decreases` to `@Pure @ContractOnly` functions
 
 There is no body to check a measure against, but callers need it: proving termination of anything that calls the stub — including using it as a specification function in contexts that must terminate — requires a `Decreases` measure on the stub itself.

@@ -20,6 +20,7 @@ Optional parameters on both:
 - `viper_args: [...]` — extra Silicon backend arguments. Sensible defaults are baked into the server launch: a whole-run `--timeout` and per-assert SMT budget `--assertTimeout`, so runaway proof steps surface quickly as located errors instead of hanging.
 - `counterexample: true` — include concrete failing variable assignments in each diagnostic.
 - `include_viper: true` — return the translated Viper program as `viperProgram`. Request only when inspecting the encoding; even small files translate to hundreds of lines.
+- `translate_only: true` — stop after translation (mypy + Nagini-to-Viper); nothing is verified.
 
 Result shape:
 ```json
