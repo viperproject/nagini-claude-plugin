@@ -221,6 +221,10 @@ def network_address(addr: int, prefix: int) -> int:
     Ensures(net_id(Result(), prefix) * block_size(prefix) == Result())
 ```
 
+### Property getters are implicitly pure
+
+A `@property` getter is treated as a pure function automatically. Do not stack `@Pure` on it (rejected as redundant).
+
 ## ContractOnly Functions
 
 For specification-only functions that don't need an implementation:
@@ -308,6 +312,26 @@ Forall(int, lambda i:
 ```
 
 `Forall3` through `Forall6` extend the same pattern to more variables.
+
+### Quantified Permissions
+
+A `Forall` whose body contains `Acc(...)` grants permission to a whole family of heap locations at once. This is called a quantified permission, or QP:
+
+```python
+Forall(streams, lambda k: (Acc(streams[k].weight), []))
+```
+
+Every QP carries a proof obligation the plain quantifiers do not have: the receiver expression must be **injective** — distinct values of the bound variable must denote distinct objects. If this cannot be proven, verification will fail (`qp.not.injective`). For a QP over container elements this means distinct keys/indices map to distinct objects. Often, you can state it as a pure function and require it alongside the QP:
+
+```python
+@Pure
+def streams_injective(streams: Dict[int, Stream]) -> bool:
+    Requires(Acc(dict_pred(streams), 1 / 100))
+    return Forall2(int, int, lambda k1, k2: (
+        Implies(k1 in streams and k2 in streams and k1 != k2,
+                streams[k1] is not streams[k2]),
+        [[streams[k1], streams[k2]]]))
+```
 
 ## Built-in Verified Types
 

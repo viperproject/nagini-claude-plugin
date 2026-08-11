@@ -25,6 +25,9 @@ Things that Nagini genuinely cannot do:
 - **Limitation**: Use of Exists() quantifiers. Works in theory but will cause timeouts in practice.
   **Workaround**: Use explicit witnesses or witness functions.
 
+- **Limitation**: Connecting quantified membership facts to the concrete contents of a collection can be difficult or impossible. For example, a set `s` known only through "`x in s` iff `P(x)`" has no terms to trigger the solver, so you cannot derive e.g. the contents `Assert(s == PSet(1))` or its cardinality (`len(s)`) from that alone. 
+  **Workaround**: Keep aggregates constructive: build collections operation by operation, or track the count in its own variable updated alongside every mutation. Keep cardinality out of `Decreases` measures — use fuel-bounded recursion instead.
+
 - **Limitation**: Bitwise operators on ints (`&`, `|`, `^`, `<<`, `>>`) encode through an int-to-bitvector bridge that is very expensive for the solver, especially under quantifiers or in loop invariants — proofs that touch them often time out.
   **Workaround**: When values are nonnegative and the width permits, use the arithmetic equivalents instead (`x & 1` -> `x % 2`, `x >> k` -> `x // 2**k`, `x << k` -> `x * 2**k`); they verify orders of magnitude faster.
 
@@ -33,9 +36,6 @@ Things that Nagini genuinely cannot do:
 
 - **Limitation**: `print()` is stubbed with a single `object` argument — no varargs, no keyword args, no f-strings. Anything beyond a single argument fails with `Unsupported version of builtin function`. 
   **Workaround**: A single concatenated string works fine (`print('Adding ' + name)`). Collapse multi-arg prints into one concatenated string, or drop them.
-
-- **Limitation**: Re-exports from `__init__.py` (e.g. `from .helpers import foo` so consumers can `from pkg import foo`) crash translation with a `RecursionError` in `nagini_translation/lib/views.py`.
-  **Workaround**: Keep `__init__.py` empty (it only needs to exist so mypy treats the directory as a package) and import directly from submodules: `from pkg.helpers import foo`.
 
 - **Limitation**: Comprehensions are only partially supported. Single-generator comprehensions translate, but the verifier can prove little about the result.  The body must be pure — statements in the body raise `impure.list.comprehension.body`. Multiple generators (`for x in xs for y in ys`) fail translation.
   **Workaround**: When facts about the resulting collection are needed, rewrite as an explicit loop with invariants.
