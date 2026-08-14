@@ -13,7 +13,7 @@ Nagini specifications are Python function calls (`Requires()`, `Ensures()`, `Acc
 
 Verification runs through the `nagini` MCP server. Before starting any verification work, check that the plugin's `mcp__nagini__verify_method` tool is available. If it is not, do not fall back to workarounds like the `nagini` CLI: diagnose with the plugin README.md and walk the user through the fix. The server spawns once at Claude Code startup with its launch environment, so most fixes require restarting Claude Code.
 
-- `mcp__nagini__verify_method(path, method)` — the primary tool. Always verify one method per call. `path` must be absolute. `method` is a bare function name, `ClassName.method_name`, or `ClassName`.
+- `mcp__nagini__verify_method(path, methods)` — the primary tool. `path` must be absolute. `methods` is a list of member names: a bare function name, `ClassName.method_name`, or `ClassName` (all its methods). Verify only what you are working on: the one method while iterating on it, and when several methods need (re-)checking, as one list in a single call.
 - `mcp__nagini__verify_snippet(code)` — verify inline code without creating a file.
 
 Optional parameters on both:

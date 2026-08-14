@@ -258,6 +258,7 @@ Forall(int, lambda i: (
 #### Trigger rules
 
 - Every quantifier needs a trigger; nested quantifiers each need one (not just the innermost).
+- An empty trigger list `[]` tells the solver to infer one. This can lead to unpredictable instantiation behavior.
 - Each quantified variable must appear in at least one trigger expression.
 - Each trigger expression must mention at least one quantified variable, and must contain some structure beyond the variable itself (typically a function application — a bare variable is not a valid trigger).
 - Arithmetic and boolean operators may not appear in trigger expressions.

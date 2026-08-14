@@ -21,7 +21,7 @@ If you do encounter a real verifier limitation that prevents verification of cor
 
 # Verifier options
 
-The `mcp__nagini__verify_*` tools and their parameters (per-method selection, `counterexample: true`, `include_viper: true`, `viper_args`) are documented in `nagini-language: Verification tools`; always verify one method per call. Read results from the structured response: `message` and `code` identify the error kind, `reason` the failing assertion, `startLine` the location, `counterexample`, `branchConditions` and `debug` the debugging signals. `translationFailed: true` marks syntax/type/translation errors rather than verification failures.
+The `mcp__nagini__verify_*` tools and their parameters (per-method selection, `counterexample: true`, `include_viper: true`, `viper_args`) are documented in `nagini-language: Verification tools`; verify only the method(s) you are debugging as one `methods` list in a single call rather than one call each. Read results from the structured response: `message` and `code` identify the error kind, `reason` the failing assertion, `startLine` the location, `counterexample`, `branchConditions` and `debug` the debugging signals. `translationFailed: true` marks syntax/type/translation errors rather than verification failures.
 
 # Dealing with Errors
 
@@ -55,30 +55,61 @@ Once Phase 1 has reduced the failure to a single failing assertion, diagnose **w
 Of course, it is also always possible that the state (in particular `assumptions` and `state`) genuinely does not entail the fact you are asserting. No amount of solver help can fix that; it usually requires changes to contracts or loop invariants. 
 
 ### Locate the missing step
-Read the evidence first: `reasonUnknown` and the goal term tell you what kind of missing step you are hunting and where to aim your probes.
-If a failing diagnostic has no `debug` field, the server was launched without SMT-state collection; pass `viper_args: ["--smtStateOnError", "--assertTimeout=2000", "--reportReasonUnknown"]` yourself.
+Never guess what the reason for a failure is. The error message should contain all the info you need, in particular the error location, reason and the `debug` payload. Read the evidence first: `reasonUnknown` and the goal term tell you what kind of missing step you are hunting and where to aim your probes.
+If a failing diagnostic has no `debug` field, the server was launched without SMT-state collection; pass `viper_args: ["--smtStateOnError", "--assertTimeout=500", "--reportReasonUnknown"]` yourself.
 
 Each failing diagnostic's `debug` object contains the symbolic state at the failure, expressed in the verifier's internal term language:
 
 | Field | Content | Use it to |
 |---|---|---|
 | `failedAssertion` | The exact goal term the solver could not prove | See the obligation as the solver sees it (after encoding), not as you wrote it |
+| `failedAssertionPretty` | The same goal with `@line@col` suffixes stripped and `_checkDefined` shims unwrapped | Read the goal quickly; fall back to the raw term when versions matter |
 | `reasonUnknown` | Why the solver returned unknown (see table below) | **Choose the fix strategy** |
-| `assumptions` | All path-condition terms in scope at the failure | Scan for gross absences and anomalies. To test whether a specific fact is available, probe it with `Assert` — presence in this list is neither necessary nor sufficient for derivability |
+| `rlimitDelta` | Prover resources the failing check consumed, in Z3 rlimit units (the budget is `assertTimeout` ms × 9000) | A delta at the budget means the cap bound the check; a delta well below it means the solver stopped on its own |
+| `assumptions` | Path-condition terms in scope at the failure, pre-filtered to those sharing a symbol with `failedAssertion` (an `omitted` marker counts the rest) | Scan for gross absences and anomalies. To test whether a specific fact is available, probe it with `Assert` — presence in this list is neither necessary nor sufficient for derivability |
 | `branchConditions` | The branch decisions leading to the failing path | Identify which control-flow path fails |
-| `state.store` / `state.heap` / `state.oldHeaps` | Local variables and heap chunks with their symbolic values | Trace which symbolic value a variable holds; spot havocked (freshly re-assigned) values after calls |
-| `functionDecls` / `macroDecls` | Declared symbols | Map term names back to program entities |
+| `state.store` / `state.heap` / `state.oldHeaps` | Local variables, and the heap as a list of chunks (`resource(receiver; snapshot, permission)`) | Trace which symbolic value a variable holds; spot havocked (freshly re-assigned) values after calls; see which permissions the path actually holds |
 
-Two bulk fields — the full SMT session (`proverEmits`) and the background axioms (`preambleAssumptions`) — are collected and archived server-side. When a result carries many large diagnostics, later ones may arrive with `trimmed: true` and an `assumptionsOmitted` count instead of the full `assumptions` list, which you also can request from the server.
+Bulk fields — the full SMT session (`proverEmits`), the background axioms (`preambleAssumptions`), and the symbol declarations (`functionDecls`/`macroDecls`) — are collected and archived server-side, not sent inline. When a result carries many large diagnostics, later ones may arrive with fields truncated or dropped, each noted in the payload's `omitted` map.
 
 Reading terms: `x@3@05` is a symbolic constant for program variable `x` (numbers are internal versions — successive assignments create new versions). Integers are boxed: `__prim__int___box__`/`int___unbox__` wrap between Python ints and SMT ints, and `_checkDefined(_, x, id)` wraps variable reads (it is identity on the value). `QA x :: body` is a universal quantifier. Pure functions appear applied to a snapshot argument first (`ipow(_, b, e)`).
+
+#### Worked example
+
+A loop that swaps `heap[pos]` and `heap[parent]` fails its invariant with
+`invariant.not.preserved:assertion.false`, reason `Assertion ToMS(ToSeq(heap)) == Old(ToMS(ToSeq(heap))) might not hold`, and this payload (abridged):
+
+```json
+{
+  "failedAssertionPretty": "PMultiset___eq__((_, (_, _)),
+      __toMS(PSeq___sil_seq__(_, heap)), Old(__toMS(...)))",
+  "reasonUnknown": "(incomplete quantifiers)",
+  "rlimitDelta": 4500000,
+  "branchConditions": [],
+  "assumptions": ["issubtype(typeof(heap), list(int))",
+                   "PSeq___update__(_, sq, pos, tmp) == ..."],
+  "state": {"store": "TreeSeqMap(heap -> heap@13@07, pos -> pos@4@07, ...)",
+             "heap": ["list_acc(heap@13@07; sm@8@01, 1/1)"]}
+}
+```
+
+Read it in this order:
+1. `reasonUnknown` is `(incomplete quantifiers)` and `rlimitDelta` sits exactly at the budget (500ms × 9000) — the instantiation search was still churning when the cap hit. Strategy row 1 applies: do **not** re-run with a bigger budget.
+2. The goal (pretty form) is a multiset equality over `__toMS(...)` of the sequence; the `assumptions` list has facts about `PSeq___update__` (the element writes) but **nothing connecting a sequence update to its `__toMS` image** — the bridge the goal needs is absent, not slow.
+3. `state.store` shows `heap` still bound to the same version (`heap@13@07`) on both sides — so the failure is not a havocked variable; it really is the missing seq-to-multiset bridging fact.
+
+Fix accordingly: state the bridge as a ground stepping stone before the invariant re-check — `Assert(ToMS(ToSeq(heap)) == old_ms - PMultiset(a, b) + PMultiset(b, a))`-style — or extract a `lemma_seq_update_multiset` with that postcondition and call it after the two writes.
+
+#### Whole-run timeouts carry no payload
+
+A `TimeoutOccurred` diagnostic saying the whole-run `--timeout` expired (older servers instead return `cancelled: true` with **no diagnostics**) is a different animal from a `canceled` `reasonUnknown`: the run's global budget ran out while every individual check stayed within its per-check budget — typically a member whose encoding fans out into thousands of small queries. There is no failing obligation to read, and re-running at the same `--timeout` is deterministic and changes nothing. Retry once with `viper_args=["--timeout=<2x>"]` — such proofs often converge, or at least come back with a real, located diagnostic (going beyond 2x rarely helps and may exceed the surrounding tool-call budget) — and if it still times out, decompose the member or simplify its spec.
 
 #### `reasonUnknown` decides the strategy
 
 | Value | Meaning | Strategy |
 |---|---|---|
 | `(incomplete quantifiers)` | E-matching gave up: the instantiation chain to the proof was never triggered (under-instantiation). More solver time will not help. | Restate the missing fact as a GROUND fact placed where it is always visible: as a postcondition or a local `Assert`. Add only facts the payload shows are missing: speculative extra ground facts feed the instantiation engine and can slow everything down. For quantified goals, also check TRIGGER VOCABULARY: do the premise quantifiers' trigger terms occur under the goal's binder? If not, add a bridging quantified `Assert` whose trigger matches the goal's vocabulary and whose body mentions the premise triggers. |
-| `canceled` | The budget ran out while the solver was still actively working. The proof may be within reach. | Either apply the performance strategies below or retry with a larger `--assertTimeout` (e.g. 10000). |
+| `canceled` | The budget ran out while the solver was still working. | Apply the performance strategies below — restructure, do not re-budget. Raising `--assertTimeout` on a canceled obligation has rescued zero of the benchmark obligations it was ever probed on (at 10–30× budget the solver either diverges outright or gives up as `(incomplete quantifiers)` just past the old budget). At most, ONE much-larger-cap run can serve as a diagnostic — does the reason flip to an incompleteness? — never as the fix. |
 | `(incomplete (theory arithmetic))` | Nonlinear integer arithmetic (products, `//`, `%` of variables) is beyond the solver. More time will not help. | Restate the proof with stepping stones that avoid division/modulo OF PRODUCTS entirely: use the Euclid identity (`a == (a // d) * d + a % d`), pure polynomial identities (products may appear; the solver normalizes them), and the bounded-multiple inference (`0 <= m * d < d` implies `m == 0`). `(k * d) // d == k` and `(k * d) % d == 0` are NOT directly provable — derive them via the chain above. |
 
 With the failure classified, probe. Before the failing assertion, insert additional assertions naming candidate intermediate facts. Run the verifier. The first assert that fails narrows down the missing step: everything above it the solver can prove, everything below depends on this missing step. Narrow further by inserting another assert between the last passing one and the first failing one, until you have isolated a single small fact the solver cannot take.
