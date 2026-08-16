@@ -461,7 +461,7 @@ Nagini has two separate termination mechanisms. **They are not interchangeable.*
 
 ### `Decreases` — `@Pure` functions only
 
-`Decreases` is **only valid inside `@Pure` functions**. Using it in a regular (non-pure) method causes a translation error: `invalid.contract.position`.
+`Decreases` is **only valid inside `@Pure` functions**. Using it in a regular (non-pure) method causes a translation error.
 
 **Placement is strict**: `Decreases` must appear **after all `Requires` and before any `Ensures`**. Any other position is a translation error.
 
@@ -482,6 +482,8 @@ Tuple measures for lexicographic ordering:
 ```python
 Decreases(a, b)  # a decreases, or a is equal and b decreases
 ```
+
+Every `@Pure` function called from a function with a `Decreases` needs to prove termination as well. A non-recursive function (which terminates trivially) needs to be annotated with `Decreases(1)`.
 
 For a `@Pure` function recursing over a heap predicate, the measure can be the predicate instance. The recursive call must then sit inside an `Unfolding` of that same instance. If the predicate guards its recursion (e.g. `Implies(l.next is not None, MyList(l.next))`), guard the call with the same condition.
 
