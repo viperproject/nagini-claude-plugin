@@ -39,19 +39,20 @@ Things that Nagini genuinely cannot do:
 - **Limitation**: String support beyond the basics (literals, `+`, `len()`, equality). String methods, formatting, and slicing are largely unsupported.
   **Workaround**: Use lists of integers to represent strings when string reasoning is needed.
 
-- **Limitation**: `print()` is stubbed with a single `object` argument — no varargs, no keyword args, no f-strings. Anything beyond a single argument fails with `Unsupported version of builtin function`. 
+- **Limitation**: `print()` is stubbed with a single `object` argument — no varargs, no keyword args, no f-strings. Anything beyond a single argument fails. 
   **Workaround**: A single concatenated string works fine (`print('Adding ' + name)`). Collapse multi-arg prints into one concatenated string, or drop them.
 
 - **Limitation**: Comprehensions are only partially supported. Single-generator comprehensions translate, but the verifier can prove little about the result.  The body must be pure — statements in the body raise `impure.list.comprehension.body`. Multiple generators (`for x in xs for y in ys`) fail translation.
   **Workaround**: When facts about the resulting collection are needed, rewrite as an explicit loop with invariants.
 
+- **Limitation**: Conditional imports (an `import` inside `if` or `try`) are not supported. Names bound by a guarded import are not resolved, and using them fails translation with `Not supported: Unsupported builtin function '<name>'`. Imports must be unconditional top-level statements.
   **Workaround**: Refactor to remove the import cycle (e.g., split a class that constructs its sub-components into a data-only class plus a separate factory module) so the import can be unconditional.
 
-- **Limitation**: Operations on heap objects like string concatenation (`+`) and `list.copy()` allocate new heap objects and are thus rejected inside `@Pure` functions with `purity.violated`. 
+- **Limitation**: Operations that allocate new heap objects, like `list.copy()`, are rejected inside `@Pure` functions.
   **Workaround**: They work in regular (non-pure) method bodies. For lists, you can also use translation to a PSeq.
 
-- **Limitation**: User-defined `__lt__`/`__le__`/`__gt__`/`__ge__` dunders are not really supported. In particular they do not work for the `min()` and `max()` builtins or comparison operators (`<`, `<=`, `>`, `>=`).
-  **Workaround**: Add explicit comparison-based helpers on the class and rewrite call sites.
+- **Limitation**: User-defined `__lt__`/`__le__`/`__gt__`/`__ge__` dunders do not work with the `min()` and `max()` builtins — their contracts expect numeric types. A `@Pure` comparison dunder does drive the comparison operators (`<`, `<=`, `>`, `>=`).
+  **Workaround**: For `min()`/`max()`, add explicit comparison-based helpers on the class and rewrite call sites.
 
 - **Limitation**: `for x in iterable:` loops are difficult to verify. The iterator holds part of the iterable's `list_pred` for the loop's duration and references the elements in a way that makes it hard to state anything about it in invariants. On top of that, the iterator translation has some bugs and rough edges that cause unexpected framing and permission failures.
   **Workaround**: Use an indexed `while i < len(xs):` loop instead.

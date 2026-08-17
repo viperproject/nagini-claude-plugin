@@ -6,30 +6,37 @@ Reference for Nagini features beyond the core specification language. Load this 
 
 ### Exsures
 
+`Exsures` can name `Exception` itself, but no specific built-in exception type (`ValueError`, `ZeroDivisionError`, ...) which fail translation. For anything more precise than bare `Exception`, use a module-defined `Exception` subclass:
+
 ```python
+class DivisionError(Exception):
+    def __init__(self, code: int) -> None:
+        self.code = code
+        Ensures(Acc(self.code) and self.code == code)
+
 def safe_divide(a: int, b: int) -> int:
     Requires(True)
     Ensures(b != 0 and Result() == a // b)
-    Exsures(ZeroDivisionError, b == 0)
+    Exsures(DivisionError, b == 0)
 
     if b == 0:
-        raise ZeroDivisionError()
+        raise DivisionError(1)
     return a // b
 ```
 
 ### RaisedException
 
-In `Exsures`, use `RaisedException()` to refer to the exception object:
+In `Exsures`, use `RaisedException()` to refer to the exception object. `.args` is not modeled but you can use fields you define on your own exception class:
 
 ```python
-Exsures(ValueError, RaisedException().args[0] == "invalid")
+Exsures(DivisionError, Acc(RaisedException().code) and RaisedException().code == 1)
 ```
 
 ## Global Variables
 
 Module-level variables are supported. The top-level module scope implicitly holds full permission to every module-level binding, and permissions flow from there like any other `Acc`.
 
-Reads need no contract permission:
+Reads of a global that is never reassigned need no contract permission:
 
 ```python
 COUNTER: int = 0
@@ -39,15 +46,16 @@ def get() -> int:
     return COUNTER
 ```
 
-Writes require `Acc(var)` in the contract and a `global` declaration in the body. Return the permission via `Ensures` so the caller keeps it:
+Writes require `Acc(var)` in the contract and a `global` declaration placed before the contract lines. Return the permission via `Ensures` so the caller keeps it:
 
 ```python
 def bump() -> None:
+    global COUNTER
     Requires(Acc(COUNTER))
     Ensures(Acc(COUNTER) and COUNTER == Old(COUNTER) + 1)
-    global COUNTER
     COUNTER = COUNTER + 1
 ```
+Once any function in the module reassigns the global, even reads require `Acc(<name>)` in the contract — `get` as written above fails alongside a writer like `bump` below.
 
 For shared reads, split the permission into fractions and wrap it in a `@Predicate` (e.g. `Acc(a, 1/2)`), `Fold` it at module scope, and have functions require/ensure the predicate — same pattern as fractional field permissions.
 
@@ -69,6 +77,8 @@ t.start(worker)                          # consumes MayStart + worker's precondi
                                          # yields Joinable(t) + Acc(ThreadPost(t))
 t.join(worker)                           # consumes Acc(ThreadPost(t)), inhales worker's post
 ```
+
+`start` yields `Joinable(t)` and `Acc(ThreadPost(t))` only if `worker`'s precondition includes a `MustTerminate(...)` obligation; without it the thread cannot be proven joinable.
 
 ### Resources
 
@@ -108,4 +118,4 @@ Invariant(Forall(int, lambda j: (
 )))
 ```
 
-`Joinable(threads[j])` **alone** as the sole body of a `Forall` also works — the bug is specifically its use in a conjunction. See `verifythis2026/task2/test_joinable_in_forall.py` for the minimal reproducer.
+`Joinable(threads[j])` **alone** as the sole body of a `Forall` also works — the bug is specifically its use in a conjunction.

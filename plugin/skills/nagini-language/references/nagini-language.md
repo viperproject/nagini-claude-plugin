@@ -130,7 +130,6 @@ for x in xs:
 ```python
 Acc(obj.field)          # Full (write) permission
 Acc(obj.field, 1/2)     # Fractional (read) permission
-Rd(obj.field)           # Read permission (shorthand for some fraction)
 ```
 
 ### Permission Arithmetic
@@ -154,16 +153,18 @@ def transfer(src: Cell, dst: Cell) -> None:
 
 ```python
 @Predicate
-def list_pred(lst: MyList) -> bool:
+def my_list_pred(lst: MyList) -> bool:
     return (Acc(lst.value) and Acc(lst.next) and
-            Implies(lst.next is not None, list_pred(lst.next)))
+            Implies(lst.next is not None, my_list_pred(lst.next)))
 ```
+
+Do not name your own predicate `list_pred`, `dict_pred`, or `set_pred`. These names are reserved for built-ins.
 
 ### Fold and Unfold
 
 ```python
-Fold(list_pred(node))     # Package concrete permissions into predicate
-Unfold(list_pred(node))   # Extract concrete permissions from predicate
+Fold(my_list_pred(node))     # Package concrete permissions into predicate
+Unfold(my_list_pred(node))   # Extract concrete permissions from predicate
 ```
 
 ### Unfolding Expression
@@ -173,9 +174,9 @@ Use `Unfolding` to temporarily unfold a predicate within an expression:
 ```python
 @Pure
 def get_value(lst: MyList) -> int:
-    Requires(list_pred(lst))
+    Requires(my_list_pred(lst))
 
-    return Unfolding(list_pred(lst), lst.value)
+    return Unfolding(my_list_pred(lst), lst.value)
 ```
 
 ## Pure Functions
@@ -184,13 +185,11 @@ Functions used in specifications must be marked `@Pure`:
 
 ```python
 @Pure
-def length(lst: Optional[MyList]) -> int:
-    Requires(Implies(lst is not None, list_pred(lst)))
-    Decreases(list_pred(lst))
+def length(lst: MyList) -> int:
+    Requires(my_list_pred(lst))
+    Decreases(my_list_pred(lst))
 
-    if lst is None:
-        return 0
-    return Unfolding(list_pred(lst), 1 + length(lst.next))
+    return Unfolding(my_list_pred(lst), 1 if lst.next is None else 1 + length(lst.next))
 ```
 
 **Restrictions on pure functions:**
@@ -224,7 +223,7 @@ def network_address(addr: int, prefix: int) -> int:
 
 ### Property getters are implicitly pure
 
-A `@property` getter is treated as a pure function automatically. Do not stack `@Pure` on it (rejected as redundant).
+A `@property` getter is treated as a pure function automatically. Do not stack `@Pure` on it.
 
 ## ContractOnly Functions
 
@@ -261,8 +260,8 @@ Forall(int, lambda i: (
 - Every quantifier needs a trigger; nested quantifiers each need one (not just the innermost).
 - An empty trigger list `[]` tells the solver to infer one. This can lead to unpredictable instantiation behavior.
 - Each quantified variable must appear in at least one trigger expression.
-- Each trigger expression must mention at least one quantified variable, and must contain some structure beyond the variable itself (typically a function application — a bare variable is not a valid trigger).
-- Arithmetic and boolean operators may not appear in trigger expressions.
+- Each trigger expression must mention at least one quantified variable and should contain some structure beyond the variable itself (typically a function application).
+- Avoid arithmetic and boolean operators in trigger expressions, they lead to unpredictable instantiation.
 - Accessibility predicates (`Acc(...)`) may not appear in trigger expressions.
 - Avoid triggers where the quantifier body can re-instantiate on the trigger terms — that produces a matching loop and the verifier will time out.
 
@@ -341,7 +340,7 @@ Immutable mathematical sequences. The supported operations are:
 ```python
 from nagini_contracts.contracts import PSeq
 
-s = PSeq[int]()                   # Empty sequence
+s: PSeq[int] = PSeq()             # Empty sequence (bare constructor + annotation)
 s = PSeq(1, 2, 3)                 # Sequence [1, 2, 3] (type inferred from args)
 len(s)                            # Length (use in specs)
 s[i]                              # Element access
@@ -352,7 +351,7 @@ s.update(i, v)                    # Update at index i
 x in s                            # Membership
 ```
 
-The varargs form `PSeq(x, y, ...)` is usable inline in any spec expression. The empty form `PSeq[int]()` is statement-level only: it cannot appear directly inside `Requires` / `Ensures` / `Invariant` / `Assert` expressions. For `Invariant` / `Assert`, bind to a local first. For `Requires` / `Ensures`, express emptiness with `len(s) == 0`, or build an empty sequence from an existing one with `s.take(0)` or `s.drop(len(s))`.
+The varargs form `PSeq(x, y, ...)` is usable inline in any spec expression. For an empty sequence, avoid using the subscripted spelling `PSeq[int]()`, the verifier treats the result as an arbitrary value, not even empty. In a spec, express emptiness with `len(s) == 0`.
 
 ### Sets (PSet)
 
@@ -361,28 +360,27 @@ Immutable mathematical sets:
 ```python
 from nagini_contracts.contracts import PSet
 
-s = PSet[int]()                   # Empty set (statement-level only)
+s: PSet[int] = PSet()             # Empty set (bare constructor + annotation)
 s = PSet(1, 2, 3)                 # Set {1, 2, 3} (type inferred from args)
 x in s                            # Membership
 len(s)                            # Cardinality
-s | t                             # Union
-s & t                             # Intersection
+s + t                             # Union
 s - t                             # Difference
 ```
 
-Same constructor rules as `PSeq`: the varargs form is usable inline in specs; the empty `PSet[int]()` is statement-level only.
+There is no intersection operator, so you must express intersection with a quantifier or build it constructively. Same constructor rules as `PSeq`: the varargs form is usable inline in specs; for a known-empty set use `s: PSet[int] = PSet()`, never the subscripted `PSet[int]()`.
 
 ### Multisets (PMultiset)
 
 ```python
 from nagini_contracts.contracts import PMultiset
 
-m = PMultiset[int]()              # Empty multiset (statement-level only)
+m: PMultiset[int] = PMultiset()   # Empty multiset (bare constructor + annotation)
 m = PMultiset(1, 2, 2)            # Multiset {|1, 2, 2|} (type inferred from args)
 m.num(x)                          # Count of x in m
 ```
 
-Same constructor rules as `PSeq`: the varargs form is usable inline in specs; the empty `PMultiset[int]()` is statement-level only.
+Same constructor rules as `PSeq`: the varargs form is usable inline in specs; for a known-empty multiset use `m: PMultiset[int] = PMultiset()`, never the subscripted `PMultiset[int]()`.
 
 ## Built-in Functions with Verified Contracts
 
@@ -402,7 +400,7 @@ Only write a custom pure function when no built-in covers the operation.
 
 `int` is unbounded: arithmetic (`+`, `-`, `*`, `//`, `%`) has no size limits and needs no configuration. Two constructs do have limits:
 
-**Bitwise operations** on `int` are encoded through fixed-width bitvectors sized by the verifier's bitops-width setting (default 8; set per request via the `int_bitops_size` parameter of the verify tools — the width sticks for subsequent requests — or at CLI launch via `--int-bitops-size`). `&`, `|`, `^` require both operands in `[-(2**N), 2**N - 1]` on every application; shifts require a non-negative count and require the operand range only when the count exceeds 64. Out-of-range operands fail with a precondition error naming the flag. Prefer the arithmetic form when one exists — it is unbounded and needs no flag: `x & (2**k - 1)` is `x % 2**k`, `x >> k` is `x // 2**k`, `x << k` is `x * 2**k` (exact equalities for all ints).
+**Bitwise operations** on `int` are encoded through fixed-width bitvectors sized by the verifier's bitops-width setting (default 8; set per request via the `int_bitops_size` parameter of the verify tools — the width sticks for subsequent requests — or at CLI launch via `--int-bitops-size`). `&`, `|`, `^` require both operands in `[-(2**N), 2**N - 1]` on every application; shifts require a non-negative count and require the operand range only when the count exceeds 64. Out-of-range operands fail with a bare precondition error on the bitwise expression (the message does not name the flag). Prefer the arithmetic form when one exists — it is unbounded and needs no flag: `x & (2**k - 1)` is `x % 2**k`, `x >> k` is `x // 2**k`, `x << k` is `x * 2**k` (exact equalities for all ints).
 
 **Power expressions**: `**` with a constant exponent is evaluated by unrolling one step per solver instantiation, so only small exponents evaluate (tens, not hundreds); with a symbolic exponent it is essentially opaque without manual lemmas. Exponents must be non-negative. Write large constants as numeral literals (decimal or hex), in code and contracts alike:
 
@@ -479,7 +477,7 @@ Decreases clauses can also contain a boolean *condition* (`Decreases(measure, co
 
 Every `@Pure` function called from a function with a `Decreases` needs to prove termination as well. A non-recursive function (which terminates trivially) needs to be annotated with `Decreases(1)`.
 
-For a `@Pure` function recursing over a heap predicate, the measure can be the predicate instance. The recursive call must then sit inside an `Unfolding` of that same instance. If the predicate guards its recursion (e.g. `Implies(l.next is not None, MyList(l.next))`), guard the call with the same condition.
+For a `@Pure` function recursing over a heap predicate, the measure can be the predicate instance. The recursive call must then sit inside an `Unfolding` of that same instance. If the predicate guards its recursion (e.g. `Implies(l.next is not None, MyList(l.next))`), guard the call with the same condition. The parameter must not be `Optional`: if the recursive call can pass `None`, the callee's measure predicate does not exist and the termination check fails.
 
 ### `MustTerminate` — non-pure methods and loops
 
@@ -524,10 +522,10 @@ Assume(x > 0)          # Assumed without proof (use sparingly)
 
 ## Let Bindings
 
-For naming subexpressions in specifications:
+`Let(bound_expr, result_type, lambda)` means "let v = bound_expr in lambda-body": `Let(5, int, lambda x: x + 34)` evaluates to 39. The second argument is the type of the lambda's *result* — not of the bound variable — so in a contract it is always `bool`:
 
 ```python
-Ensures(Let(int, Result() + 1, lambda v: v > 0 and v < 100))
+Ensures(Let(x + 1, bool, lambda v: v > 0 and v < 100))
 ```
 
 ## Container Predicates
