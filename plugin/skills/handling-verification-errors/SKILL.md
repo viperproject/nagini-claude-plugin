@@ -7,6 +7,7 @@ description: Nagini debugging and error handling reference. Provides strategies 
 
 - **Never** make assumptions about the cause of a verification error without evidence.
 - Instead, always use the systematic techniques described here to gather information and isolate the true cause.
+- If you have a theory — "the verifier cannot do X", "this pattern is the problem" — always start by creating a minimal snippet pair that  demonstrates the theory: the failing shape and the closest working variant. Demonstrate before fixing broadly or reporting a limitation.
 - Then, you can confidently fix the underlying issue.
 - **Never** weaken or delete a contract just to make verification pass; surface the mismatch instead.
 
