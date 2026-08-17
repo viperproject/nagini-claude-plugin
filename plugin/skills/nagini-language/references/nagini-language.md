@@ -117,8 +117,9 @@ In a `for x in xs:` loop, `Previous(x)` is the PSeq of the loop variable's value
 
 ```python
 s = 0
-for mm in range(1, 13):
-    Invariant(s == len(Previous(mm)))   # iteration count so far
+for x in xs:
+    Invariant(Acc(list_pred(xs), 1 / 2))
+    Invariant(s == len(Previous(x)))   # iteration count so far
     s += 1
 ```
 
@@ -277,7 +278,7 @@ Forall(int, lambda i: (
 
 #### Quantifying over a collection
 
-The first argument to `Forall` does not have to be a type — it can also be a collection value (a `list`, `PSeq`, `PSet`, `range`, etc.), in which case the bound variable ranges over the *elements* of that collection rather than over all values of a type. The element-form quantifier avoids the `0 <= i < len(xs)` guard and triggers on element-level expressions.
+The first argument to `Forall` does not have to be a type — it can also be a collection value (a `list`, `PSeq`, `PSet`), in which case the bound variable ranges over the *elements* of that collection rather than over all values of a type. The element-form quantifier avoids the `0 <= i < len(xs)` guard and triggers on element-level expressions.
 
 ```python
 xs: List[int] = ...
@@ -286,9 +287,6 @@ Assert(Forall(xs, lambda x: (x >= 0, [])))
 
 # Equivalent index-form
 Assert(Forall(int, lambda i: (Implies(0 <= i and i < len(xs), xs[i] >= 0), [[xs[i]]])))
-
-# Works for range, PSeq, PSet too
-Assert(Forall(range(0, n), lambda x: (x < n, [])))
 ```
 
 Use the element form when the property is naturally per-element and does not depend on the index; use the index form when you need the index (e.g. to relate `xs[i]` and `xs[i+1]`, or to mix in a second collection at the same position).

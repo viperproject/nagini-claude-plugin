@@ -25,6 +25,9 @@ Things that Nagini genuinely cannot do:
 - **Limitation**: Use of Exists() quantifiers. Works in theory but will cause timeouts in practice.
   **Workaround**: Use explicit witnesses or witness functions.
 
+- **Limitation**: `range(...)` is a frequent source of tricky verification failures. A fact or permission quantified over `range(a, b)` binds to range-membership terms that often cannot be connected to a use site's arithmetic bounds (`a <= i < b`), and `for ... in range(...)` loops inherit the for-loop iterator issues below.
+  **Workaround**: Avoid `range()`. In specs, quantify over `int` with an explicit bounds guard: `Forall(int, lambda i: (Implies(lo <= i and i < hi, ...), [[...]]))`. In code, use an indexed `while` loop.
+
 - **Limitation**: Connecting quantified membership facts to the concrete contents of a collection can be difficult or impossible. For example, a set `s` known only through "`x in s` iff `P(x)`" has no terms to trigger the solver, so you cannot derive e.g. the contents `Assert(s == PSet(1))` or its cardinality (`len(s)`) from that alone. 
   **Workaround**: Keep aggregates constructive: build collections operation by operation, or track the count in its own variable updated alongside every mutation. Keep cardinality out of `Decreases` measures — use fuel-bounded recursion instead.
 
