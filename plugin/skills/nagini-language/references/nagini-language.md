@@ -475,11 +475,7 @@ def factorial(n: int) -> int:
     return n * factorial(n - 1)
 ```
 
-Tuple measures for lexicographic ordering:
-
-```python
-Decreases(a, b)  # a decreases, or a is equal and b decreases
-```
+Decreases clauses can also contain a boolean *condition* (`Decreases(measure, condition)` as second argument. The measure is only checked when the condition holds). For a lexicographic ordering on `(a, b)`, combine both into one measure.
 
 Every `@Pure` function called from a function with a `Decreases` needs to prove termination as well. A non-recursive function (which terminates trivially) needs to be annotated with `Decreases(1)`.
 
