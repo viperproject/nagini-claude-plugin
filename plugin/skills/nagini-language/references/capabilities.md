@@ -4,6 +4,8 @@ Nagini and Viper are more expressive than you might assume. Before concluding th
 
 **If you believe Nagini cannot express something and it is not listed here as a confirmed limitation, assume you are wrong.** Try the direct encoding first. Only treat it as a real limitation once you have a concrete error demonstrating it.
 
+The reverse does not hold for performance limitations. An entry that says "times out" or "expensive" describes behavior at realistic scale; a small snippet that passes quickly does not refute it and is not a license to use the construct. Follow the entry's workaround anyway.
+
 ## Confirmed Capabilities
 
 Things that Nagini CAN do, despite common misconceptions:
@@ -22,8 +24,8 @@ Things that Nagini genuinely cannot do:
   **Workaround**: recommended approach
 -->
 
-- **Limitation**: Use of Exists() quantifiers. Works in theory but will cause timeouts in practice.
-  **Workaround**: Use explicit witnesses or witness functions.
+- **Limitation**: `Exists()` quantifiers. Never use them. Toy snippets with an `Exists` verify in seconds; the same shape inside a real contract — under quantified permissions, in a recursive predicate, or instantiated per loop iteration — causes timeouts that surface far from the `Exists` itself and are near-impossible to debug. A passing probe does not clear it for use.
+  **Workaround**: Every existential has a constructive replacement: an explicit witness variable, a pure function that returns the witness, or a pure boolean function defined by recursion.
 
 - **Limitation**: `range(...)` is a frequent source of tricky verification failures. A fact or permission quantified over `range(a, b)` binds to range-membership terms that often cannot be connected to a use site's arithmetic bounds (`a <= i < b`), and `for ... in range(...)` loops inherit the for-loop iterator issues below.
   **Workaround**: Avoid `range()`. In specs, quantify over `int` with an explicit bounds guard: `Forall(int, lambda i: (Implies(lo <= i and i < hi, ...), [[...]]))`. In code, use an indexed `while` loop.
