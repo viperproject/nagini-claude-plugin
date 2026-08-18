@@ -55,8 +55,8 @@ Once Phase 1 has reduced the failure to a single failing assertion, diagnose **w
 
 Of course, it is also always possible that the state (in particular `assumptions` and `state`) genuinely does not entail the fact you are asserting. No amount of solver help can fix that; it usually requires changes to contracts or loop invariants. 
 
-### Locate the missing step
-Never guess what the reason for a failure is. The error message should contain all the info you need, in particular the error location, reason and the `debug` payload. Read the evidence first: `reasonUnknown` and the goal term tell you what kind of missing step you are hunting and where to aim your probes.
+### Understand the error
+Never guess what the reason for a failure is. The error message should contain all the info you need, in particular the error location, reason and the `debug` payload. Read the evidence first.
 If a failing diagnostic has no `debug` field, the server was launched without SMT-state collection; pass `viper_args: ["--smtStateOnError", "--assertTimeout=500", "--reportReasonUnknown"]` yourself.
 
 Each failing diagnostic's `debug` object contains the symbolic state at the failure, expressed in the verifier's internal term language:
@@ -75,7 +75,40 @@ Bulk fields — the full SMT session (`proverEmits`), the background axioms (`pr
 
 Reading terms: `x@3@05` is a symbolic constant for program variable `x` (numbers are internal versions — successive assignments create new versions). Integers are boxed: `__prim__int___box__`/`int___unbox__` wrap between Python ints and SMT ints, and `_checkDefined(_, x, id)` wraps variable reads (it is identity on the value). `QA x :: body` is a universal quantifier. Pure functions appear applied to a snapshot argument first (`ipow(_, b, e)`).
 
-#### Worked example
+A `TimeoutOccurred` diagnostic saying the whole-run `--timeout` expired means that the run's global budget ran out while every individual check stayed within its per-check budget — typically a member whose encoding fans out into thousands of small queries. In this case, it can make sense to re-run with a 2x `--timeout`. Going beyond 2x rarely helps, so if it still times out, decompose the member or simplify its spec.
+
+
+#### Interpreting `reasonUnknown`
+For most failures, start by understanding why the SMT-query failed, which is given in the `reasonUnknown` field. :
+
+| Value | Meaning | Strategy |
+|---|---|---|
+| `(incomplete quantifiers)` | E-matching gave up: the instantiation chain to the proof was never triggered (under-instantiation). More solver time will not help. | Restate the missing fact as a GROUND fact placed where it is always visible: as a postcondition or a local `Assert`. Add only facts the payload shows are missing: speculative extra ground facts feed the instantiation engine and can slow everything down. For quantified goals, also check TRIGGER VOCABULARY: do the premise quantifiers' trigger terms occur under the goal's binder? If not, add a bridging quantified `Assert` whose trigger matches the goal's vocabulary and whose body mentions the premise triggers. |
+| `canceled` | The budget ran out while the solver was still working. | Apply the performance strategies below — restructure, do not re-budget. |
+| `(incomplete (theory arithmetic))` | Nonlinear integer arithmetic (products, `//`, `%` of variables) is beyond the solver. | More time will not help. Restate the proof with stepping stones that avoid division/modulo OF PRODUCTS entirely: use the Euclid identity (`a == (a // d) * d + a % d`), pure polynomial identities (products may appear; the solver normalizes them), and the bounded-multiple inference (`0 <= m * d < d` implies `m == 0`). `(k * d) // d == k` and `(k * d) % d == 0` are NOT directly provable — derive them via the chain above. |
+
+#### Interpreting `state.heap`
+A `insufficient.permission`, `fold.failed`/`unfold.failed`, or `leak_check.failed` diagnostic means that a required permission chunk or obligation could not be exhaled. Start from the heap listing `state.heap`, which is a short list of what the path holds at the failure: `resource(receiver; snapshot) # amount`. Compare it against what the failing construct demands (`failedAssertion` names the demanded chunk). The read classifies the failure into one of two shapes:
+
+**The demanded chunk is absent:**
+
+| What you see in `state.heap` | Cause |
+|---|---|
+| A folded predicate chunk (`Box_mypred(...; x) # W`) and the demanded field/`dict_pred`/`list_pred` chunk is absent | The permission is **inside the folded predicate** — access it under `Unfolding(...)` / add `Unfold` on this path |
+| The chunk existed in `state.oldHeaps['old']` but is gone from `state.heap` | **Consumed along the path** — by a `Fold`, or by a call that did not return it; walk the statements between entry and failure |
+| The heap is empty or unrelated on this branch | The contract/invariant never provided it on this path — check `branchConditions` for which path, then the precondition or invariant |
+
+**A matching chunk is present but not provably applicable:**
+
+| What you see in `state.heap` | Missing fact |
+|---|---|
+| A **conditional/quantified chunk** covering the receiver under a guard (`QA r,s :: MyPred(r,s) -> ... # (r == r_0 && s == s_0 ? W : Z)`) | The solver cannot prove your receiver satisfies the guard / lies in the quantified domain — assert the guard equalities as ground facts before the failing point |
+| The chunk on a **different receiver symbol** than the demanded one (`self_2@10` held, `self@14` demanded) | A receiver equality (aliasing fact) is missing — or the expression genuinely evaluates against the wrong object |
+| The chunk with a **symbolic amount** (`# $k@50`) | The solver cannot prove the amount suffices (`$k > 0`, `$k >= 1/2`, ...) — assert where the fraction came from |
+| The chunk fractional (`# 1/2`) where a write or full-permission fold is demanded | Deliberate split not reassembled — see the spec's permission accounting |
+| A `MustTerminate`/obligation chunk in a `leak_check.failed` | Read the obligation measures in `failedAssertion` — the inequality states the budget deficit directly (e.g. a callee's `MustTerminate` measure not strictly below the caller's remaining budget) |
+
+#### Fact failures — worked example
 
 A loop that swaps `heap[pos]` and `heap[parent]` fails its invariant with
 `invariant.not.preserved:assertion.false`, reason `Assertion ToMS(ToSeq(heap)) == Old(ToMS(ToSeq(heap))) might not hold`, and this payload (abridged):
@@ -101,27 +134,36 @@ Read it in this order:
 
 Fix accordingly: state the bridge as a ground stepping stone before the invariant re-check — `Assert(ToMS(ToSeq(heap)) == old_ms - PMultiset(a, b) + PMultiset(b, a))`-style — or extract a `lemma_seq_update_multiset` with that postcondition and call it after the two writes.
 
-#### Whole-run timeouts carry no payload
+##### Permission failures — worked example
 
-A `TimeoutOccurred` diagnostic saying the whole-run `--timeout` expired (older servers instead return `cancelled: true` with **no diagnostics**) is a different animal from a `canceled` `reasonUnknown`: the run's global budget ran out while every individual check stayed within its per-check budget — typically a member whose encoding fans out into thousands of small queries. There is no failing obligation to read, and re-running at the same `--timeout` is deterministic and changes nothing. Retry once with `viper_args=["--timeout=<2x>"]` — such proofs often converge, or at least come back with a real, located diagnostic (going beyond 2x rarely helps and may exceed the surrounding tool-call budget) — and if it still times out, decompose the member or simplify its spec.
+A pure helper fails with `application.precondition:insufficient.permission` ("There might be insufficient permission") and this payload (abridged):
 
-#### `reasonUnknown` decides the strategy
+```json
+{
+  "failedAssertion": "... dict_acc(self._fwd, ...) ...",
+  "reasonUnknown": "(incomplete quantifiers)",
+  "state": {"store": "TreeSeqMap(self -> self_2@10@06, key -> key@4@06, ...)",
+             "heap": ["Box_pair_state(sm@14@06; self_2@10@06) # W"]}
+}
+```
 
-| Value | Meaning | Strategy |
-|---|---|---|
-| `(incomplete quantifiers)` | E-matching gave up: the instantiation chain to the proof was never triggered (under-instantiation). More solver time will not help. | Restate the missing fact as a GROUND fact placed where it is always visible: as a postcondition or a local `Assert`. Add only facts the payload shows are missing: speculative extra ground facts feed the instantiation engine and can slow everything down. For quantified goals, also check TRIGGER VOCABULARY: do the premise quantifiers' trigger terms occur under the goal's binder? If not, add a bridging quantified `Assert` whose trigger matches the goal's vocabulary and whose body mentions the premise triggers. |
-| `canceled` | The budget ran out while the solver was still working. | Apply the performance strategies below — restructure, do not re-budget. Raising `--assertTimeout` on a canceled obligation has rescued zero of the benchmark obligations it was ever probed on (at 10–30× budget the solver either diverges outright or gives up as `(incomplete quantifiers)` just past the old budget). At most, ONE much-larger-cap run can serve as a diagnostic — does the reason flip to an incompleteness? — never as the fix. |
-| `(incomplete (theory arithmetic))` | Nonlinear integer arithmetic (products, `//`, `%` of variables) is beyond the solver. More time will not help. | Restate the proof with stepping stones that avoid division/modulo OF PRODUCTS entirely: use the Euclid identity (`a == (a // d) * d + a % d`), pure polynomial identities (products may appear; the solver normalizes them), and the bounded-multiple inference (`0 <= m * d < d` implies `m == 0`). `(k * d) // d == k` and `(k * d) % d == 0` are NOT directly provable — derive them via the chain above. |
+Read it in this order:
+1. `state.heap` — one chunk: the folded predicate `pair_state(self_2)` at full permission, and nothing else. The `dict_acc(self._fwd)` the application demands is not in the heap, so it must live **inside the folded predicate**: the cause is identified before any probe. The call must be wrapped in `Unfolding(self.pair_state(), ...)`, or the function's own precondition must require the predicate and the body unfold it.
+2. Cross-check receivers: the held chunk's receiver (`self_2@10@06`) matches the store's binding for `self` — so this is a folding problem, not an aliasing problem. If they differed, the fix would instead be establishing the aliasing fact or evaluating against the right object.
+3. `reasonUnknown` still gets a look, as a sanity check rather than the router. Here it says `(incomplete quantifiers)`, which adds nothing beyond the heap read (the exhale search gave up — expected when the chunk is plainly absent).
 
-With the failure classified, probe. Before the failing assertion, insert additional assertions naming candidate intermediate facts. Run the verifier. The first assert that fails narrows down the missing step: everything above it the solver can prove, everything below depends on this missing step. Narrow further by inserting another assert between the last passing one and the first failing one, until you have isolated a single small fact the solver cannot take.
 
-Insert several `Assert(...)` probes at once. Every passing probe confirms a fact the solver knows; the first failing one pinpoints the missing step. A long chain finds the answer in one run instead of many — don't limit yourself to one probe at a time.
+### Adding probe asserts
+To further understand the failure and also help it with explicit intermediate facts, you can insert probe asserts. Before the failing assertion, insert additional assertions and re-run the verifier. Insert several `Assert(...)` probes at once. Every passing probe confirms a fact the solver knows; the first failing one pinpoints the missing step. 
 
-**Often the probes themselves are the fix.** A few well-placed `Assert(...)` statements give the solver the intermediate facts (or quantifier triggers) it needs to discharge the original goal — the original error simply goes away. When that happens, you are done: keep the asserts that hold the verification together and skip creating and verifying a candidate.
+If an intermediate assert fails, then you can repeat the process on this assertion to narrow down the failure. Otherwise, you can add more intermediate asserts.
+Often the probes themselves are the fix. A few well-placed `Assert(...)` statements give the solver the intermediate facts (or quantifier triggers) it needs to discharge the original goal. When that happens, you are done: keep the asserts that hold the verification together and skip creating and verifying a candidate.
 
 #### Choosing probe asserts
 
-To pick candidate intermediate facts to probe with, use the patterns below.
+To pick candidate intermediate facts to probe with, use the patterns below. You can use multiple strategies at once.
+
+**Explicit failing SMT-queries**: the `failedAssertion` term is the exact obligation the solver could not prove. Translate it back to Python and assert it before the failing point.
 
 **Weakest-precondition backtracking** to move a failing assert earlier. To debug a failing `assert P`, move it earlier by computing the weakest precondition over the preceding statement. Repeat until the assert passes (bug is between the two positions) or reaches method entry (precondition too weak).
 
@@ -185,6 +227,8 @@ When a fold fails, assert each component of the predicate body separately (witho
 2. List permissions **consumed** (folds, method calls, exhales)
 3. List permissions **needed** (postconditions, remaining folds)
 4. Check: acquired - consumed >= needed?
+
+`state.heap` at the failure already gives you the acquired-minus-consumed inventory for free; trace manually to find *which statement* along the path consumed a chunk the heap read showed missing.
 
 #### Performance strategies
 
@@ -266,5 +310,6 @@ Quick-reference for mapping a verification error or symptom to its likely cause 
 | Loop invariant not preserved (fails at end of body) | Missing update in loop body; inductive step needs a lemma | Strengthen invariant or fix loop body | Strengthen or weaken invariant; add `Fold`/`Unfold` inside loop body |
 | "Precondition might not hold" / call might fail | Caller doesn't establish what the callee requires | Establish the missing precondition before the call | Same |
 | Method verifies but caller fails | Postcondition too weak — caller needs a guarantee the method doesn't provide | Strengthen postcondition | Same |
+| Fact about a field/container provable before a call, unprovable after it (`state.store` shows the value re-assigned across the call) | Callee's `Ensures` re-grants permission to the location without stating value/content preservation — the call havocs it | Add the frame condition to the callee's `Ensures` (e.g. `ToSeq(x.xs) == Old(ToSeq(x.xs))`) | Report as a contract weakness — a missing frame condition cannot be recovered caller-side |
 | Error disappears when unrelated code is added | Self-framing — the extra code incidentally provides a needed permission | Make the permission explicit in the contract | Same |
 | "Function might not terminate" | Missing or incorrect termination measure | Add or fix `Decreases()` on the function/method | Same |
