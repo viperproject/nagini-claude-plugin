@@ -84,7 +84,7 @@ For most failures, start by understanding why the SMT-query failed, which is giv
 | Value | Meaning | Strategy |
 |---|---|---|
 | `(incomplete quantifiers)` | E-matching gave up: the instantiation chain to the proof was never triggered (under-instantiation). More solver time will not help. | Restate the missing fact as a GROUND fact placed where it is always visible: as a postcondition or a local `Assert`. Add only facts the payload shows are missing: speculative extra ground facts feed the instantiation engine and can slow everything down. For quantified goals, also check TRIGGER VOCABULARY: do the premise quantifiers' trigger terms occur under the goal's binder? If not, add a bridging quantified `Assert` whose trigger matches the goal's vocabulary and whose body mentions the premise triggers. |
-| `canceled` | The budget ran out while the solver was still working. | Apply the performance strategies below — restructure, do not re-budget. |
+| `canceled` | The budget ran out while the solver was still working. | One diagnostic probe is worth it: re-run once with ~10x `assertTimeout` and read `rlimitDelta`. If it stops well below the new budget (reason flips to an incompleteness class), time was never the issue. If it scales with the budget, the proof is genuinely slow: apply the performance strategies below rather than re-budgeting further. |
 | `(incomplete (theory arithmetic))` | Nonlinear integer arithmetic (products, `//`, `%` of variables) is beyond the solver. | More time will not help. Restate the proof with stepping stones that avoid division/modulo OF PRODUCTS entirely: use the Euclid identity (`a == (a // d) * d + a % d`), pure polynomial identities (products may appear; the solver normalizes them), and the bounded-multiple inference (`0 <= m * d < d` implies `m == 0`). `(k * d) // d == k` and `(k * d) % d == 0` are NOT directly provable — derive them via the chain above. |
 
 #### Interpreting `state.heap`
@@ -232,14 +232,30 @@ When a fold fails, assert each component of the predicate body separately (witho
 
 #### Performance strategies
 
-For `canceled` and other performance failures:
-- Replace `Exists()` with explicit witnesses.
-- Split a method into multiple methods to reduce the proof obligation of each method. In particular nested loops can cause blowup, so extracting inner loops into separate methods can help.
-- Hide for-all quantifiers in predicates. Reveal locally when required, then hide again.
-- Keep predicates folded in loop invariants. When a loop traverses a predicate, prefer carrying the folded predicate in the invariant and using `Unfold`/`Fold` inside the loop body (or `Unfolding(...)` for value reads) over unfolding before the loop and threading the predicate's contents through the invariant.
-- Add explicit triggers, make sure the triggers are performing correctly.
-- Collapse nested `Forall` into `Forall2`/`Forall3`/.../`Forall6` with a joint trigger (see `nagini-language: Multi-variable Quantification`).
-- Proving termination can be very expensive. Try removing the termination measures and verify partial correctness first.
+Verification time ≈ number of symbolic execution paths × cost per SMT query. Query cost is dominated by the proof context: every axiom, pure-function body, path condition, and heap chunk in scope alongside the goal. Slowness is too many paths, too much context, or both; the two multiply.
+
+**Shrink the proof context:**
+- Keep predicates folded in loop invariants; `Unfold`/`Fold` inside the body, `Unfolding(...)` for value reads. An unfolded predicate costs as much as no predicate.
+- Hide quantified facts inside predicates; expose them locally where needed.
+- Move proof steps into a lemma: a lemma's proof context is exactly its precondition, and its facts reach the caller only through its postcondition.
+- Split large methods; extract inner loops into helper methods with contracts.
+
+**Cut symbolic paths:**
+- Replace `Exists()` with an explicit witness.
+- Split a lemma precondition of the form `A or B` into one lemma per disjunct, selected at the call site by `if`. A disjunctive goal gives the solver no branch to take; each disjunct on its own path is a one-step goal.
+
+**Triggers:**
+- Give every `Forall` an explicit trigger: the most restrictive terms that still fire.
+- Collapse nested `Forall` into `Forall2`/.../`Forall6` with a joint trigger.
+- When two consumers phrase a quantified fact's terms differently, give one `Assert` both trigger sets as alternatives.
+- Establish a quantified fact before the branch that consumes it, not only where the invariant is re-established at the end of the loop body.
+- A matching loop — instantiation produces a new term matching the same trigger — consumes any budget; fix the trigger, more budget will not help.
+
+**Termination last:** comment out `Decreases()`/`MustTerminate` measures, verify partial correctness first, and restore them once the functional proof passes.
+
+**Bottleneck classification via `viper_args`:** overrides are diagnostic only — the fix must pass under default flags. A member that verifies only under a flag has identified its bottleneck class, which picks the strategy above:
+- `--moreJoins 1` (join branches after impure conditionals): passes now → path explosion; cut paths.
+- `--exhaleMode 0` (greedy heap reasoning; incomplete under disjunctive aliasing, so a *new* error under it proves nothing): passes now → heap-exhale cost; shrink the permission footprint and keep predicates folded.
 
 ### Reduce to a self-contained candidate
 
@@ -313,3 +329,4 @@ Quick-reference for mapping a verification error or symptom to its likely cause 
 | Fact about a field/container provable before a call, unprovable after it (`state.store` shows the value re-assigned across the call) | Callee's `Ensures` re-grants permission to the location without stating value/content preservation — the call havocs it | Add the frame condition to the callee's `Ensures` (e.g. `ToSeq(x.xs) == Old(ToSeq(x.xs))`) | Report as a contract weakness — a missing frame condition cannot be recovered caller-side |
 | Error disappears when unrelated code is added | Self-framing — the extra code incidentally provides a needed permission | Make the permission explicit in the contract | Same |
 | "Function might not terminate" | Missing or incorrect termination measure | Add or fix `Decreases()` on the function/method | Same |
+| A fact about an `int` that is numerically obvious fails | `x` is not known to be exactly `int` (static type `int` admits subclasses such as `bool`) | Same as annotations | Thread `type(x) == int` through the contracts |

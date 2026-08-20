@@ -33,6 +33,8 @@ Pass/fail is the `success` field. `translationFailed: true` marks syntax/type/tr
 
 `mcp__nagini__cancel(job_token)` cancels an in-flight verification; `mcp__nagini__flush_cache()` clears the verification result cache.
 
+The result cache keys entries on the file content and backend only — verifier flags are NOT part of the key. So setting flags and re-running (e.g. other values of `--assertTimeout`, `--timeout`) will lead to cache hits on the old values of the flags. Call `flush_cache()` (or pass `--disableCaching`) whenever re-verifying with raised budgets.
+
 ## Resources
 
 ### references/nagini-language.md

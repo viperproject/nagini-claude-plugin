@@ -6,7 +6,7 @@ Reference for Nagini features beyond the core specification language. Load this 
 
 ### Exsures
 
-`Exsures` can name `Exception` itself, but no specific built-in exception type (`ValueError`, `ZeroDivisionError`, ...) which fail translation. For anything more precise than bare `Exception`, use a module-defined `Exception` subclass:
+`Exsures` can name `Exception` itself or any builtin `Exception` subclass (`ValueError`, `KeyError`, ...); builtins are modeled as opaque subclasses of `Exception`, raised via `raise ValueError` or `raise ValueError()` (a message argument is accepted but not modeled). To carry data on the exception, use a module-defined `Exception` subclass:
 
 ```python
 class DivisionError(Exception):

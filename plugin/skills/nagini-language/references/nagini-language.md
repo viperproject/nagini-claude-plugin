@@ -179,6 +179,8 @@ def get_value(lst: MyList) -> int:
     return Unfolding(my_list_pred(lst), lst.value)
 ```
 
+Unfolded permissions are only available inside the `Unfolding(...)` expression itself, so evaluate a heap-dependent expression inside the scope.
+
 ## Pure Functions
 
 Functions used in specifications must be marked `@Pure`:
@@ -382,6 +384,8 @@ m.num(x)                          # Count of x in m
 
 Same constructor rules as `PSeq`: the varargs form is usable inline in specs; for a known-empty multiset use `m: PMultiset[int] = PMultiset()`, never the subscripted `PMultiset[int]()`.
 
+There is no `.count` and no `x in m` for multisets, check membership with `m.num(x) > 0`.
+
 ## Built-in Functions with Verified Contracts
 
 Nagini ships verified contracts for many Python built-ins, usable directly in specs and pure functions. This table is the canonical list — never write a custom `@Pure` helper that duplicates an entry:
@@ -391,12 +395,43 @@ Nagini ships verified contracts for many Python built-ins, usable directly in sp
 | `abs(x)`, `abs(a - b)` | `abs_diff(a, b)`, custom `abs` |
 | `max(a, b)`, `min(a, b)` | `max_of(a, b)`, `min_of(a, b)` |
 | `len(xs)` | `list_len(xs)`, manual length recursion over a list/PSeq |
-| `x in xs` (`List`, `PSeq`, `PSet`, `PMultiset`) | custom `contains(xs, x)`, existential over indices |
+| `x in xs` (`List`, `PSeq`, `PSet`) | custom `contains(xs, x)`, existential over indices |
 | `xs[i]`, `xs.take(n)`, `xs.drop(n)`, `xs + ys` (`PSeq`) | manual sequence rebuild via recursion |
 
 Only write a custom pure function when no built-in covers the operation.
 
-## Integer Model
+## Integers
+
+### Typing
+
+Python's `int` can be subclassed (`bool` is one). So something of type `int` is only known to be *some* int-subtype object. It has the numeric value you expect, but it is not known to be *the* int object for that value. This can lead to some unexpected behavior:
+
+```python
+def f(s: Set[int], x: int) -> None:
+    Requires(Acc(set_pred(s)))
+    Requires(1 in s and x == 1)
+    Assert(x in s)        # FAILS: x is not known to be the object 1
+
+def g(x: int) -> None:
+    Requires(Q(0) and Q(1))          # Q is @ContractOnly
+    Requires(x == 0 or x == 1)
+    Assert(Q(x))          # FAILS for the same reason
+
+# and P(0) and P(1) does not give Forall(int, lambda i: Implies(0 <= i and i <= 1, P(i)))
+```
+
+The missing fact is always the same one: **`type(x) == int`**. State it where you state any other fact about `x`, and carry it along like a permission. With `Requires(type(x) == int)`, `f` and `g` verify.
+
+| Place | Write |
+|---|---|
+| `int` parameter | `Requires(type(x) == int)` |
+| `int` return value | `Ensures(type(Result()) == int)` |
+| `int` field | `type(self.n) == int` next to `Acc(self.n)` in the predicate / postcondition of `__init__` |
+| contents of a `List[int]` / `Set[int]` / `PSeq[int]` | `Forall(xs, lambda e: (type(e) == int, []))` in the same pre/post/invariant as `list_pred(xs)` — the element form; it is preserved across `append` of exact ints and through loops that build the list, whereas the index form `Forall(int, lambda i: Implies(0 <= i and i < len(xs), type(xs[i]) == int))` needs extra frame assertions after each mutation |
+| loop counter / accumulator | `Invariant(type(i) == int)` (preserved by `i += 1`) |
+| `Forall(int, ...)` whose body identifies `i` (membership, `@ContractOnly`) | add `type(i) == int` to the guard: `Implies(type(i) == int and lo <= i and i < hi, ...)` |
+
+### Size limits
 
 `int` is unbounded: arithmetic (`+`, `-`, `*`, `//`, `%`) has no size limits and needs no configuration. Two constructs do have limits:
 
